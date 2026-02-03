@@ -43,3 +43,8 @@ constexpr float CONTROL_DT_S = 0.01f;      // 10 ms
 // PWM range (platform dependent)
 constexpr int PWM_MAX = 255;
 constexpr int PWM_MIN = 0;
+
+// -------------------- Motion Limits -------------------
+
+// Maximum wheel angular acceleration (rad/s^2)
+constexpr float MAX_WHEEL_ACCEL_RAD_S2 = 5.0f;
