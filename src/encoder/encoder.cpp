@@ -23,14 +23,16 @@ void Encoder::begin() {
 
     if (encoderA_instance == nullptr) {
         encoderA_instance = this;
-        attachInterrupt(digitalPinToInterrupt(pinA_), encoderA_ISR, CHANGE);
-    } else if (encoderB_instance == nullptr) {
+        attachInterrupt(digitalPinToInterrupt(pinA_), encoderA_ISR, RISING);
+    } 
+    else if (encoderB_instance == nullptr) {
         encoderB_instance = this;
-        attachInterrupt(digitalPinToInterrupt(pinA_), encoderB_ISR, CHANGE);
+        attachInterrupt(digitalPinToInterrupt(pinA_), encoderB_ISR, RISING);
     }
 }
 
 void Encoder::handleISR() {
+    // Direction detection (quadrature)
     if (digitalRead(pinA_) == digitalRead(pinB_))
         count_++;
     else

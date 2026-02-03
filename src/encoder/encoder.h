@@ -1,5 +1,4 @@
 #pragma once
-
 #include <stdint.h>
 
 class Encoder {
@@ -9,7 +8,7 @@ public:
     int32_t readDelta();
     int32_t readTotal() const;
     void reset();
-    
+
     void handleISR();
 
 private:
