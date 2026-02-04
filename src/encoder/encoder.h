@@ -3,17 +3,13 @@
 
 class Encoder {
 public:
-    Encoder(uint8_t pinA, uint8_t pinB);
-    void begin();
+    explicit Encoder(volatile int32_t* counter);
+
     int32_t readDelta();
     int32_t readTotal() const;
     void reset();
 
-    void handleISR();
-
 private:
-    uint8_t pinA_;
-    uint8_t pinB_;
-    volatile int32_t count_ = 0;
+    volatile int32_t* count_;
     int32_t last_count_ = 0;
 };
