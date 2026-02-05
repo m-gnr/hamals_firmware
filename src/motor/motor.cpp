@@ -20,16 +20,16 @@ Motor::Motor(uint8_t in1,
 
 void Motor::begin()
 {
-    // Setup PWM channels
+    pinMode(in1_, OUTPUT);
+    pinMode(in2_, OUTPUT);
+
     ledcSetup(pwm_channel_1_, PWM_FREQ, PWM_RES);
     ledcSetup(pwm_channel_2_, PWM_FREQ, PWM_RES);
 
     ledcAttachPin(in1_, pwm_channel_1_);
     ledcAttachPin(in2_, pwm_channel_2_);
 
-    // Ensure stopped
-    ledcWrite(pwm_channel_1_, 0);
-    ledcWrite(pwm_channel_2_, 0);
+    stop();
 }
 
 void Motor::setPWM(int pwm)
@@ -38,12 +38,10 @@ void Motor::setPWM(int pwm)
     if (pwm < -pwm_max_) pwm = -pwm_max_;
 
     if (pwm > 0) {
-        // Forward
         ledcWrite(pwm_channel_1_, pwm);
         ledcWrite(pwm_channel_2_, 0);
     }
     else if (pwm < 0) {
-        // Reverse
         ledcWrite(pwm_channel_1_, 0);
         ledcWrite(pwm_channel_2_, -pwm);
     }

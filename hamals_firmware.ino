@@ -1,75 +1,52 @@
 #include <Arduino.h>
 
 #include "src/config/config_pins.h"
-#include "src/config/config_robot.h"
-
 #include "src/encoder/encoder.h"
-#include "src/encoder/encoder_isr.h"
-#include "src/kinematics/kinematics.h"
 
 // --------------------------------------------------
-// Encoder wrappers (OLD ARCH)
+// Encoder instances
 // --------------------------------------------------
-Encoder leftEncoder(&leftPulseCount);
-Encoder rightEncoder(&rightPulseCount);
+Encoder leftEncoder(ENC_L_A, ENC_L_B);
+Encoder rightEncoder(ENC_R_A, ENC_R_B);
 
 // --------------------------------------------------
-// Kinematics (LEFT / RIGHT CPR)
-// --------------------------------------------------
-Kinematics kinematics(
-    ENCODER_CPR_LEFT,
-    ENCODER_CPR_RIGHT,
-    WHEEL_RADIUS_M,
-    TRACK_WIDTH_M
-);
-
-// --------------------------------------------------
-unsigned long lastMillis = 0;
+unsigned long lastPrint = 0;
 
 void setup() {
     Serial.begin(115200);
     delay(2000);
 
-    Serial.println("\n=== KINEMATICS HAND TEST (OLD ENCODER) ===");
+    Serial.println("\n=== ENCODER RAW TEST ===");
+    Serial.println("Tekerleri ELLE çevir:");
+    Serial.println(" - Sol ileri / geri");
+    Serial.println(" - Sağ ileri / geri");
+    Serial.println(" - 1 tam tur ≈ CPR\n");
 
-    pinMode(ENC_L_A, INPUT_PULLUP);
-    pinMode(ENC_L_B, INPUT_PULLUP);
-    pinMode(ENC_R_A, INPUT_PULLUP);
-    pinMode(ENC_R_B, INPUT_PULLUP);
+    leftEncoder.begin();
+    rightEncoder.begin();
 
-    attachInterrupt(digitalPinToInterrupt(ENC_L_A), leftEncoderISR, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(ENC_R_A), rightEncoderISR, CHANGE);
-
-    lastMillis = millis();
+    lastPrint = millis();
 }
 
 void loop() {
-    unsigned long now = millis();
-    float dt = (now - lastMillis) / 1000.0f;
-
-    if (dt < CONTROL_DT_S)
+    if (millis() - lastPrint < 200)
         return;
 
-    lastMillis = now;
+    lastPrint = millis();
 
     int32_t dL = leftEncoder.readDelta();
     int32_t dR = rightEncoder.readDelta();
 
-    KinematicsInput kinIn{ dL, dR, dt };
-    KinematicsOutput out = kinematics.update(kinIn);
+    int32_t tL = leftEncoder.readTotal();
+    int32_t tR = rightEncoder.readTotal();
 
     Serial.print("ΔL=");
     Serial.print(dL);
-    Serial.print(" ΔR=");
+    Serial.print("  TL=");
+    Serial.print(tL);
+
+    Serial.print(" | ΔR=");
     Serial.print(dR);
-
-    Serial.print(" | ωL=");
-    Serial.print(out.omega_left, 2);
-    Serial.print(" ωR=");
-    Serial.print(out.omega_right, 2);
-
-    Serial.print(" | v=");
-    Serial.print(out.v, 3);
-    Serial.print(" w=");
-    Serial.println(out.w, 3);
+    Serial.print("  TR=");
+    Serial.println(tR);
 }
