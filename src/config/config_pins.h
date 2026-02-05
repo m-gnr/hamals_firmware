@@ -3,12 +3,12 @@
 
 // -------------------- Encoder Pins ---------------------
 // Left wheel encoder
-#define ENC_L_A   13   // D13 - interrupt capable - Channel A
-#define ENC_L_B   14   // D14 - interrupt capable - Channel B
+#define ENC_L_A   D13   // D13 - interrupt capable - Channel A
+#define ENC_L_B   D14   // D14 - interrupt capable - Channel B
 
 // Right wheel encoder
-#define ENC_R_A   8    // D8  - interrupt capable - Channel A
-#define ENC_R_B   9    // D9  - interrupt capable - Channel B
+#define ENC_R_A   D8    // D8  - interrupt capable - Channel A
+#define ENC_R_B   D9    // D9  - interrupt capable - Channel B
 
 // -------------------- Motor Driver Pins ----------------
 // Left motor driver
