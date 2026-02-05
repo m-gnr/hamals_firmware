@@ -21,9 +21,9 @@
 
 // -------------------- IMU (BNO085 - SPI) ----------------
 // SPI interface
-#define IMU_CS    4    // Chip Select
-#define IMU_INT   0    // Data Ready Interrupt (TODO: move to D15/D16/D17)
-#define IMU_RST   12   // Reset
+#define IMU_CS    D4    // Chip Select
+#define IMU_INT   D0    // Data Ready Interrupt (TODO: move to D15/D16/D17)
+#define IMU_RST   D12   // Reset
 
 // -------------------- Serial ---------------------------
 #define SERIAL_BAUDRATE 115200

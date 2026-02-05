@@ -1,30 +1,31 @@
 #include <Arduino.h>
 
+// ---------------- CONFIG ----------------
 #include "src/config/config_pins.h"
 #include "src/config/config_robot.h"
 
+// ---------------- LOW LEVEL ----------------
 #include "src/encoder/encoder.h"
-#include "src/kinematics/kinematics.h"
-#include "src/control/velocity_cmd.h"
-#include "src/control/wheel_pid.h"
 #include "src/motor/motor.h"
 
-// --------------------------------------------------
-// TEST AYARLARI
-// --------------------------------------------------
-constexpr float TARGET_V = 0.40f;   // m/s  (ileri hız)
-constexpr float TARGET_W = 0.0f;    // rad/s (düz)
-constexpr float DT_S     = CONTROL_DT_S;
+// ---------------- MID LEVEL ----------------
+#include "src/kinematics/kinematics.h"
+#include "src/control/wheel_pid.h"
+#include "src/control/velocity_cmd.h"
 
-// --------------------------------------------------
-// ENCODER (PIN TABANLI)
-// --------------------------------------------------
-Encoder leftEncoder (ENC_L_A, ENC_L_B);
+// ---------------- SENSORS ----------------
+#include "src/imu/imu.h"
+
+
+// Encoders
+Encoder leftEncoder(ENC_L_A, ENC_L_B);
 Encoder rightEncoder(ENC_R_A, ENC_R_B);
 
-// --------------------------------------------------
-// KINEMATICS
-// --------------------------------------------------
+// Motors
+Motor leftMotor(MOTOR_L_IN1, MOTOR_L_IN2, PWM_MAX);
+Motor rightMotor(MOTOR_R_IN1, MOTOR_R_IN2, PWM_MAX);
+
+// Kinematics
 Kinematics kinematics(
     ENCODER_CPR_LEFT,
     ENCODER_CPR_RIGHT,
@@ -32,135 +33,120 @@ Kinematics kinematics(
     TRACK_WIDTH_M
 );
 
-// --------------------------------------------------
-// VELOCITY COMMAND
-// --------------------------------------------------
-VelocityCmd velocityCmd(WHEEL_RADIUS_M, TRACK_WIDTH_M);
+VelocityCmd velocityCmd(
+    WHEEL_RADIUS_M,
+    TRACK_WIDTH_M
+);
 
-// --------------------------------------------------
-// PID
-// --------------------------------------------------
 WheelPID pidLeft;
 WheelPID pidRight;
 
-// --------------------------------------------------
-// MOTOR
-// --------------------------------------------------
-Motor motorLeft (MOTOR_L_IN1, MOTOR_L_IN2, PWM_MAX);
-Motor motorRight(MOTOR_R_IN1, MOTOR_R_IN2, PWM_MAX);
+// IMU (yaw only)
+IMU imu(IMU_CS, IMU_INT, IMU_RST);
 
-// --------------------------------------------------
-unsigned long lastMillis = 0;
+
+unsigned long lastControlMs = 0;
+
 
 void setup() {
     Serial.begin(SERIAL_BAUDRATE);
     delay(1500);
 
-    Serial.println();
-    Serial.println("====================================");
-    Serial.println(" TEST-2 : DUAL WHEEL PID (v sabit)");
-    Serial.println("====================================");
-    Serial.println("⚠️  Robot HAVADA olmalı");
-    Serial.print ("🎯 v = ");
-    Serial.print (TARGET_V);
-    Serial.print (" m/s , w = ");
-    Serial.println(TARGET_W);
-    Serial.println();
+    Serial.println("\n==============================");
+    Serial.println(" HAMALS FIRMWARE START");
+    Serial.println("==============================");
 
-    // Encoder
     leftEncoder.begin();
     rightEncoder.begin();
 
-    // Motor
-    motorLeft.begin();
-    motorRight.begin();
+    leftMotor.begin();
+    rightMotor.begin();
 
-    // PID ayarları
-    pidLeft.setGains (30.0f, 12.0f, 0.0f);
+    pidLeft.setGains(30.0f, 12.0f, 0.0f);
     pidRight.setGains(30.0f, 12.0f, 0.0f);
 
-    pidLeft.setRampLimit(0.03f);   // 👈 YUMUŞAK
-    pidRight.setRampLimit(0.03f);
-
-    pidLeft.setOutputLimits (-PWM_MAX, PWM_MAX);
+    pidLeft.setOutputLimits(-PWM_MAX, PWM_MAX);
     pidRight.setOutputLimits(-PWM_MAX, PWM_MAX);
 
     pidLeft.reset();
     pidRight.reset();
 
-    // Velocity target
-    velocityCmd.setTarget(TARGET_V, TARGET_W);
+    if (!imu.begin()) {
+        Serial.println("IMU init failed!");
+        while (1);
+    }
+    Serial.println("IMU ready (yaw zeroed)");
 
-    lastMillis = millis();
+    velocityCmd.setTarget(0.2f, 0.0f);   // v = 0.2 m/s, w = 0
+
+    lastControlMs = millis();
 }
 
+// --------------------------------------------------
+// LOOP
+// --------------------------------------------------
 void loop() {
-    unsigned long now = millis();
-    float dt = (now - lastMillis) / 1000.0f;
+    const unsigned long now = millis();
+    const float dt = (now - lastControlMs) * 0.001f;
 
-    if (dt < DT_S)
+    if (dt < CONTROL_DT_S)
         return;
 
-    lastMillis = now;
+    lastControlMs = now;
 
-    // --------------------------------------------------
-    // 1️⃣ Encoder → Kinematics
-    // --------------------------------------------------
-    int32_t dL = leftEncoder.readDelta();
-    int32_t dR = rightEncoder.readDelta();
+    imu.update();
+
+    velocityCmd.update(dt);
+
+    float omegaL_target = 0.0f;
+    float omegaR_target = 0.0f;
+    velocityCmd.getWheelTargets(omegaL_target, omegaR_target);
+
 
     KinematicsInput kinIn;
-    kinIn.delta_left  = dL;
-    kinIn.delta_right = dR;
+    kinIn.delta_left  = leftEncoder.readDelta();
+    kinIn.delta_right = rightEncoder.readDelta();
     kinIn.dt          = dt;
 
     KinematicsOutput kinOut = kinematics.update(kinIn);
 
-    float omegaL_measured = kinOut.omega_left;
-    float omegaR_measured = kinOut.omega_right;
 
-    // --------------------------------------------------
-    // 2️⃣ VelocityCmd → wheel targets
-    // --------------------------------------------------
-    velocityCmd.update(dt);
-
-    float omegaL_target, omegaR_target;
-    velocityCmd.getWheelTargets(omegaL_target, omegaR_target);
-
-    // --------------------------------------------------
-    // 3️⃣ PID
-    // --------------------------------------------------
-    float pwmL = pidLeft.update(
+    const float pwmL = pidLeft.update(
         omegaL_target,
-        omegaL_measured,
+        kinOut.omega_left,
         dt
     );
 
-    float pwmR = pidRight.update(
+    const float pwmR = pidRight.update(
         omegaR_target,
-        omegaR_measured,
+        kinOut.omega_right,
         dt
     );
 
-    // --------------------------------------------------
-    // 4️⃣ Motor
-    // --------------------------------------------------
-    motorLeft.setPWM ((int)pwmL);
-    motorRight.setPWM((int)pwmR);
 
-    // --------------------------------------------------
-    // 5️⃣ DEBUG
-    // --------------------------------------------------
-    Serial.print("ω_t=");
-    Serial.print(omegaL_target, 2);
+    leftMotor.setPWM((int)pwmL);
+    rightMotor.setPWM((int)pwmR);
+
+
+    Serial.print("yaw=");
+    Serial.print(imu.getYaw(), 3);
+    Serial.print(" | v=");
+    Serial.print(kinOut.v, 3);
+    Serial.print(" w=");
+    Serial.print(kinOut.w, 3);
 
     Serial.print(" | ωL=");
-    Serial.print(omegaL_measured, 2);
-    Serial.print(" pwmL=");
-    Serial.print(pwmL, 1);
+    Serial.print(kinOut.omega_left, 2);
+    Serial.print("/");
+    Serial.print(omegaL_target, 2);
 
-    Serial.print(" || ωR=");
-    Serial.print(omegaR_measured, 2);
+    Serial.print(" ωR=");
+    Serial.print(kinOut.omega_right, 2);
+    Serial.print("/");
+    Serial.print(omegaR_target, 2);
+
+    Serial.print(" | pwmL=");
+    Serial.print(pwmL, 0);
     Serial.print(" pwmR=");
-    Serial.println(pwmR, 1);
+    Serial.println(pwmR, 0);
 }
