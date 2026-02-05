@@ -8,16 +8,17 @@
 #include "src/kinematics/kinematics.h"
 
 // --------------------------------------------------
-// Encoder wrappers (ISR sayaçlarını okur)
+// Encoder wrappers (OLD ARCH)
 // --------------------------------------------------
 Encoder leftEncoder(&leftPulseCount);
 Encoder rightEncoder(&rightPulseCount);
 
 // --------------------------------------------------
-// Kinematics object
+// Kinematics (LEFT / RIGHT CPR)
 // --------------------------------------------------
 Kinematics kinematics(
-    ENCODER_CPR,
+    ENCODER_CPR_LEFT,
+    ENCODER_CPR_RIGHT,
     WHEEL_RADIUS_M,
     TRACK_WIDTH_M
 );
@@ -29,16 +30,13 @@ void setup() {
     Serial.begin(115200);
     delay(2000);
 
-    Serial.println("\n=== KINEMATICS TEST ===");
-    Serial.println("Tekerleri ELLE cevir");
-    Serial.println("Ileri / geri / saga / sola dene\n");
+    Serial.println("\n=== KINEMATICS HAND TEST (OLD ENCODER) ===");
 
     pinMode(ENC_L_A, INPUT_PULLUP);
     pinMode(ENC_L_B, INPUT_PULLUP);
     pinMode(ENC_R_A, INPUT_PULLUP);
     pinMode(ENC_R_B, INPUT_PULLUP);
 
-    // 🔴 ISR bağlama SADECE BURADA
     attachInterrupt(digitalPinToInterrupt(ENC_L_A), leftEncoderISR, CHANGE);
     attachInterrupt(digitalPinToInterrupt(ENC_R_A), rightEncoderISR, CHANGE);
 
@@ -54,43 +52,24 @@ void loop() {
 
     lastMillis = now;
 
-    // -------------------------------
-    // Encoder pulse deltas
-    // -------------------------------
-    int32_t deltaL = leftEncoder.readDelta();
-    int32_t deltaR = rightEncoder.readDelta();
+    int32_t dL = leftEncoder.readDelta();
+    int32_t dR = rightEncoder.readDelta();
 
-    // -------------------------------
-    // Kinematics input
-    // -------------------------------
-    KinematicsInput kinIn;
-    kinIn.delta_left  = deltaL;
-    kinIn.delta_right = deltaR;
-    kinIn.dt          = dt;
+    KinematicsInput kinIn{ dL, dR, dt };
+    KinematicsOutput out = kinematics.update(kinIn);
 
-    KinematicsOutput kinOut = kinematics.update(kinIn);
-
-    // -------------------------------
-    // DEBUG OUTPUT
-    // -------------------------------
     Serial.print("ΔL=");
-    Serial.print(deltaL);
+    Serial.print(dL);
     Serial.print(" ΔR=");
-    Serial.print(deltaR);
+    Serial.print(dR);
 
     Serial.print(" | ωL=");
-    Serial.print(kinOut.omega_left, 2);
-    Serial.print(" rad/s");
-
+    Serial.print(out.omega_left, 2);
     Serial.print(" ωR=");
-    Serial.print(kinOut.omega_right, 2);
-    Serial.print(" rad/s");
+    Serial.print(out.omega_right, 2);
 
     Serial.print(" | v=");
-    Serial.print(kinOut.v, 3);
-    Serial.print(" m/s");
-
+    Serial.print(out.v, 3);
     Serial.print(" w=");
-    Serial.print(kinOut.w, 3);
-    Serial.println(" rad/s");
+    Serial.println(out.w, 3);
 }

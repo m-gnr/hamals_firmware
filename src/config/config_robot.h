@@ -5,7 +5,8 @@
 constexpr float WHEEL_RADIUS_M = 0.035f;   // 3.5 cm
 
 // Encoder resolution (counts per motor shaft revolution)
-constexpr int ENCODER_CPR = 1320;           // JGB37-520 @110RPM (11 PPR × 4 × ~30:1) — !! VERIFY BY TEST !!
+constexpr int ENCODER_CPR_RIGHT = 1980;
+constexpr int ENCODER_CPR_LEFT  = 1980;
 
 // Gear reduction ratio (motor → wheel)
 constexpr float GEAR_RATIO = 30.0f;          // JGB37-520 gearbox ratio — VERIFY BY TEST
