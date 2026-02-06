@@ -13,6 +13,8 @@ public:
     void getWheelTargets(float& omega_left,
                          float& omega_right) const;
 
+    float getTargetAngular() const;
+
     void reset();
 
 private:

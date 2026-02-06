@@ -1,5 +1,6 @@
 #include "velocity_cmd.h"
 #include "../config/config_robot.h"
+#include <cmath>
 
 template <typename T>
 static inline T clamp(T value, T min_val, T max_val)
@@ -9,8 +10,6 @@ static inline T clamp(T value, T min_val, T max_val)
     return value;
 }
 
-#include <cmath>
-
 VelocityCmd::VelocityCmd(float wheel_radius_m,
                          float track_width_m)
     : wheel_radius_(wheel_radius_m),
@@ -19,13 +18,11 @@ VelocityCmd::VelocityCmd(float wheel_radius_m,
 // ------------------------------------------------------
 // setTarget()
 // ------------------------------------------------------
-// Stores desired robot velocities (NO ramp here)
-// ------------------------------------------------------
 void VelocityCmd::setTarget(float v_m_s,
                             float w_rad_s)
 {
-    // Clamp robot-level commands for safety
-    v_m_s  = clamp(v_m_s,  -MAX_LINEAR_M_S,   MAX_LINEAR_M_S);
+    // Robot-level clamp
+    v_m_s   = clamp(v_m_s,  -MAX_LINEAR_M_S,   MAX_LINEAR_M_S);
     w_rad_s = clamp(w_rad_s, -MAX_ANGULAR_RAD_S, MAX_ANGULAR_RAD_S);
 
     // Differential drive inverse kinematics
@@ -35,7 +32,7 @@ void VelocityCmd::setTarget(float v_m_s,
     desired_omega_right_ =
         (v_m_s + (w_rad_s * track_width_ * 0.5f)) / wheel_radius_;
 
-    // Clamp wheel speed targets
+    // Wheel speed clamp
     desired_omega_left_ =
         clamp(desired_omega_left_,  -MAX_WHEEL_RAD_S, MAX_WHEEL_RAD_S);
 
@@ -46,8 +43,6 @@ void VelocityCmd::setTarget(float v_m_s,
 // ------------------------------------------------------
 // update()
 // ------------------------------------------------------
-// Applies setpoint ramp (acceleration limiting)
-// ------------------------------------------------------
 void VelocityCmd::update(float dt)
 {
     if (dt <= 0.0f)
@@ -55,9 +50,8 @@ void VelocityCmd::update(float dt)
 
     const float max_step = MAX_WHEEL_ACCEL_RAD_S2 * dt;
 
-    // --- Left wheel ramp ---
+    // Left wheel
     float error_left = desired_omega_left_ - current_omega_left_;
-
     if (error_left > max_step)
         current_omega_left_ += max_step;
     else if (error_left < -max_step)
@@ -65,9 +59,8 @@ void VelocityCmd::update(float dt)
     else
         current_omega_left_ = desired_omega_left_;
 
-    // --- Right wheel ramp ---
+    // Right wheel
     float error_right = desired_omega_right_ - current_omega_right_;
-
     if (error_right > max_step)
         current_omega_right_ += max_step;
     else if (error_right < -max_step)
@@ -75,10 +68,9 @@ void VelocityCmd::update(float dt)
     else
         current_omega_right_ = desired_omega_right_;
 
-    // Final safety clamp
+    // Safety clamp
     current_omega_left_ =
         clamp(current_omega_left_,  -MAX_WHEEL_RAD_S, MAX_WHEEL_RAD_S);
-
     current_omega_right_ =
         clamp(current_omega_right_, -MAX_WHEEL_RAD_S, MAX_WHEEL_RAD_S);
 }
@@ -91,6 +83,13 @@ void VelocityCmd::getWheelTargets(float& omega_left,
 {
     omega_left  = current_omega_left_;
     omega_right = current_omega_right_;
+}
+
+
+float VelocityCmd::getTargetAngular() const
+{
+    return (desired_omega_right_ - desired_omega_left_)
+           * wheel_radius_ / track_width_;
 }
 
 // ------------------------------------------------------
