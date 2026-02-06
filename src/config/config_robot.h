@@ -1,4 +1,5 @@
 #pragma once
+
 // -------------------- Wheel & Encoder ------------------
 
 // Wheel radius in meters
@@ -6,10 +7,10 @@ constexpr float WHEEL_RADIUS_M = 0.035f;   // 3.5 cm
 
 // Encoder resolution (counts per motor shaft revolution)
 constexpr int ENCODER_CPR_LEFT  = 1980;
-constexpr int ENCODER_CPR_RIGHT = 1980; // 1980 * 1.0496 ≈ 2078
+constexpr int ENCODER_CPR_RIGHT = 1980;
 
 // Gear reduction ratio (motor → wheel)
-constexpr float GEAR_RATIO = 30.0f;          // JGB37-520 gearbox ratio — VERIFY BY TEST
+constexpr float GEAR_RATIO = 30.0f;  
 
 // DEBUG NOTE (Encoder Validation):
 // - Rotate ONE wheel exactly 1 full revolution by hand
@@ -53,11 +54,21 @@ constexpr float MAX_WHEEL_ACCEL_RAD_S2 = 50.0f;
 // -------------------- Yaw Correction ------------------
 
 // Enable heading hold (yaw correction) when w ≈ 0
-// TURN OFF THIS BOLLEAN WHEN NAV2 IS TRUE !!!!!
-constexpr bool ENABLE_YAW_CORRECTION = true;
+// TURN OFF THIS VALUE WHEN NAV2 IS TRUE !!!!!
+constexpr bool ENABLE_YAW_CORRECTION = false;
 
 // Only active if |w_target| < threshold
 constexpr float YAW_CORRECTION_W_THRESHOLD = 0.05f; // rad/s
 
 // Proportional gain
 constexpr float YAW_CORRECTION_KP = 2.0f; // 1.0–3.0
+
+// -------------------- Wheel PID ------------------------
+
+// Wheel speed PID gains
+constexpr float WHEEL_PID_KP = 18.0f;
+constexpr float WHEEL_PID_KI = 5.0f;
+constexpr float WHEEL_PID_KD = 0.0f;
+
+// PWM ramp limit (per control step)
+constexpr float WHEEL_PID_RAMP_STEP = 10.0f;

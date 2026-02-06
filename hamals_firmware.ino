@@ -12,10 +12,14 @@
 #include "src/control/velocity_cmd.h"
 #include "src/control/wheel_pid.h"
 #include "src/motor/motor.h"
+#include "src/comm/serial_comm.h"
 
 // ======================================================
 // OBJECTS
 // ======================================================
+
+// Communication
+SerialComm serial;
 
 // Encoders
 Encoder leftEncoder(ENC_L_A, ENC_L_B);
@@ -32,13 +36,13 @@ Kinematics kinematics(
     TRACK_WIDTH_M
 );
 
-// Odometry
+// Odometry (observe only)
 Odometry odom;
 
 // Velocity command
 VelocityCmd velocityCmd(WHEEL_RADIUS_M, TRACK_WIDTH_M);
 
-// PID
+// Wheel PID
 WheelPID pidL;
 WheelPID pidR;
 
@@ -54,11 +58,10 @@ unsigned long lastLoopMs = 0;
 // ======================================================
 void setup() {
     Serial.begin(SERIAL_BAUDRATE);
+    serial.begin(SERIAL_BAUDRATE);
     delay(1500);
 
-    Serial.println("====================================");
-    Serial.println(" TEST-3 : STRAIGHT LINE (v != 0)");
-    Serial.println("====================================");
+    Serial.println(" Hamals Firmware - SERIAL MODE");
 
     leftEncoder.begin();
     rightEncoder.begin();
@@ -71,54 +74,71 @@ void setup() {
     motorL.begin();
     motorR.begin();
 
-    // PID
-    pidL.setGains(18.0f, 5.0f, 0.0f);
-    pidR.setGains(18.0f, 5.0f, 0.0f);
+    // Wheel PID (baseline)
+    pidL.setGains(WHEEL_PID_KP, WHEEL_PID_KI, WHEEL_PID_KD);
+    pidR.setGains(WHEEL_PID_KP, WHEEL_PID_KI, WHEEL_PID_KD);
 
     pidL.setOutputLimits(-PWM_MAX, PWM_MAX);
     pidR.setOutputLimits(-PWM_MAX, PWM_MAX);
 
-    pidL.setRampLimit(10.0f);
-    pidR.setRampLimit(10.0f);
+
+    pidL.setRampLimit(WHEEL_PID_RAMP_STEP);
+    pidR.setRampLimit(WHEEL_PID_RAMP_STEP);
 
     odom.reset();
     lastLoopMs = millis();
 
-    Serial.println("test begin");
+    Serial.println("▶️ Ready for cmd_vel");
 }
 
 // ======================================================
-// LOOP
+// LOOP (ORCHESTRATION ONLY)
 // ======================================================
 void loop() {
+    // --------------------
+    // Timing
+    // --------------------
     unsigned long now = millis();
     float dt = (now - lastLoopMs) * 0.001f;
     lastLoopMs = now;
+    if (dt <= 0.0f) return;
 
-    if (dt <= 0.0f)
-        return;
+    // --------------------
+    // SERIAL RX (ROS → MCU)
+    // --------------------
+    serial.update();
+
+    float v_target = 0.0f;
+    float w_target = 0.0f;
+
+    if (serial.hasCmdVel()) {
+        CmdVel cmd = serial.getCmdVel();
+        v_target = cmd.v;
+        w_target = cmd.w;
+    }
 
     // --------------------
     // IMU
     // --------------------
     imu.update();
-    float yaw = imu.getYaw();   // absolute yaw (0 at startup)
+    float yaw = imu.getYaw();
 
     // --------------------
-    // TARGET (CONFIG-DRIVEN)
+    // YAW CORRECTION (CONFIG-DRIVEN)
     // --------------------
-    float v_target = 0.20f;
-    float w_target = 0.0f;
-    float w_cmd    = 0.0f;
+    float w_cmd = w_target;
 
     if constexpr (ENABLE_YAW_CORRECTION) {
         if (fabs(w_target) < YAW_CORRECTION_W_EPS) {
-            float yaw_error = -yaw;   
-            w_cmd = YAW_CORRECTION_KP * yaw_error;
+            float yaw_error = -yaw;
+            w_cmd += YAW_CORRECTION_KP * yaw_error;
         }
     }
 
-    velocityCmd.setTarget(v_target, w_target + w_cmd);
+    // --------------------
+    // VELOCITY CMD
+    // --------------------
+    velocityCmd.setTarget(v_target, w_cmd);
     velocityCmd.update(dt);
 
     float omegaLt, omegaRt;
@@ -137,12 +157,12 @@ void loop() {
     KinematicsOutput kinOut = kinematics.update(kinIn);
 
     // --------------------
-    // ODOMETRY (OBSERVE)
+    // ODOMETRY
     // --------------------
     odom.update(kinOut.v, yaw, dt);
 
     // --------------------
-    // PID → MOTOR
+    // PID → MOTORS
     // --------------------
     float pwmL = pidL.update(omegaLt, kinOut.omega_left, dt);
     float pwmR = pidR.update(omegaRt, kinOut.omega_right, dt);
@@ -151,31 +171,13 @@ void loop() {
     motorR.setPWM((int)pwmR);
 
     // --------------------
-    // DEBUG
+    // SERIAL TX (MCU → ROS)
     // --------------------
-    Serial.print("ωLt=");
-    Serial.print(omegaLt, 2);
-    Serial.print(" ωLm=");
-    Serial.print(kinOut.omega_left, 2);
-    Serial.print(" pwmL=");
-    Serial.print((int)pwmL);
-
-    Serial.print(" | ωRt=");
-    Serial.print(omegaRt, 2);
-    Serial.print(" ωRm=");
-    Serial.print(kinOut.omega_right, 2);
-    Serial.print(" pwmR=");
-    Serial.print((int)pwmR);
-
-    Serial.print(" | yaw=");
-    Serial.print(yaw, 3);
-    Serial.print(" w_corr=");
-    Serial.print(w_cmd, 3);
-
-    Serial.print(" | x=");
-    Serial.print(odom.x(), 3);
-    Serial.print(" y=");
-    Serial.println(odom.y(), 3);
-
-    delay(10); // ~100 Hz
+    serial.sendOdom(
+        odom.x(),
+        odom.y(),
+        odom.yaw(),
+        kinOut.v,
+        kinOut.w
+    );
 }
