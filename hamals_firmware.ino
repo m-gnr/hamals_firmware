@@ -1,31 +1,27 @@
 #include <Arduino.h>
 
-// ---------------- CONFIG ----------------
+// -------------------- CONFIG ---------------------------
 #include "src/config/config_pins.h"
 #include "src/config/config_robot.h"
 
-// ---------------- LOW LEVEL ----------------
+// -------------------- MODULES --------------------------
 #include "src/encoder/encoder.h"
-#include "src/motor/motor.h"
-
-// ---------------- MID LEVEL ----------------
 #include "src/kinematics/kinematics.h"
-#include "src/control/wheel_pid.h"
-#include "src/control/velocity_cmd.h"
-
-// ---------------- SENSORS ----------------
 #include "src/imu/imu.h"
+#include "src/odometry/odometry.h"
 
+// ======================================================
+// OBJECTS
+// ======================================================
 
 // Encoders
 Encoder leftEncoder(ENC_L_A, ENC_L_B);
 Encoder rightEncoder(ENC_R_A, ENC_R_B);
 
-// Motors
-Motor leftMotor(MOTOR_L_IN1, MOTOR_L_IN2, PWM_MAX);
-Motor rightMotor(MOTOR_R_IN1, MOTOR_R_IN2, PWM_MAX);
+// IMU (SPI, yaw only, zeroed at startup)
+IMU imu(IMU_CS, IMU_INT, IMU_RST);
 
-// Kinematics
+// Kinematics (LEFT & RIGHT CPR SEPARATE)
 Kinematics kinematics(
     ENCODER_CPR_LEFT,
     ENCODER_CPR_RIGHT,
@@ -33,120 +29,105 @@ Kinematics kinematics(
     TRACK_WIDTH_M
 );
 
-VelocityCmd velocityCmd(
-    WHEEL_RADIUS_M,
-    TRACK_WIDTH_M
-);
+// Odometry (IMU-assisted 2D)
+Odometry odom;
 
-WheelPID pidLeft;
-WheelPID pidRight;
+// -------------------- TIMING ---------------------------
+unsigned long lastLoopMs = 0;
 
-// IMU (yaw only)
-IMU imu(IMU_CS, IMU_INT, IMU_RST);
-
-
-unsigned long lastControlMs = 0;
-
-
+// ======================================================
+// SETUP
+// ======================================================
 void setup() {
     Serial.begin(SERIAL_BAUDRATE);
     delay(1500);
 
-    Serial.println("\n==============================");
-    Serial.println(" HAMALS FIRMWARE START");
-    Serial.println("==============================");
+    Serial.println("====================================");
+    Serial.println(" Hamals Firmware - Odometry Test");
+    Serial.println("====================================");
 
+    // Encoders
     leftEncoder.begin();
     rightEncoder.begin();
 
-    leftMotor.begin();
-    rightMotor.begin();
-
-    pidLeft.setGains(30.0f, 12.0f, 0.0f);
-    pidRight.setGains(30.0f, 12.0f, 0.0f);
-
-    pidLeft.setOutputLimits(-PWM_MAX, PWM_MAX);
-    pidRight.setOutputLimits(-PWM_MAX, PWM_MAX);
-
-    pidLeft.reset();
-    pidRight.reset();
-
+    // IMU
     if (!imu.begin()) {
-        Serial.println("IMU init failed!");
-        while (1);
+        Serial.println("IMU init failed");
+        while (1) { delay(10); }
     }
+
     Serial.println("IMU ready (yaw zeroed)");
 
-    velocityCmd.setTarget(0.2f, 0.0f);   // v = 0.2 m/s, w = 0
+    // Odometry reset
+    odom.reset();
 
-    lastControlMs = millis();
+    lastLoopMs = millis();
 }
 
-// --------------------------------------------------
+// ======================================================
 // LOOP
-// --------------------------------------------------
+// ======================================================
 void loop() {
-    const unsigned long now = millis();
-    const float dt = (now - lastControlMs) * 0.001f;
+    // --------------------
+    // DT
+    // --------------------
+    unsigned long now = millis();
+    float dt = (now - lastLoopMs) * 0.001f;
+    lastLoopMs = now;
 
-    if (dt < CONTROL_DT_S)
+    if (dt <= 0.0f)
         return;
 
-    lastControlMs = now;
-
+    // --------------------
+    // IMU
+    // --------------------
     imu.update();
+    float yaw = imu.getYaw();   // rad (absolute, 0 at startup)
 
-    velocityCmd.update(dt);
+    // --------------------
+    // ENCODER DELTAS
+    // --------------------
+    int32_t deltaL = leftEncoder.readDelta();
+    int32_t deltaR = rightEncoder.readDelta();
 
-    float omegaL_target = 0.0f;
-    float omegaR_target = 0.0f;
-    velocityCmd.getWheelTargets(omegaL_target, omegaR_target);
+    // --------------------
+    // KINEMATICS
+    // --------------------
+    KinematicsInput kin_in;
+    kin_in.delta_left  = deltaL;
+    kin_in.delta_right = deltaR;
+    kin_in.dt          = dt;
 
+    KinematicsOutput kin_out = kinematics.update(kin_in);
 
-    KinematicsInput kinIn;
-    kinIn.delta_left  = leftEncoder.readDelta();
-    kinIn.delta_right = rightEncoder.readDelta();
-    kinIn.dt          = dt;
-
-    KinematicsOutput kinOut = kinematics.update(kinIn);
-
-
-    const float pwmL = pidLeft.update(
-        omegaL_target,
-        kinOut.omega_left,
+    // --------------------
+    // ODOMETRY
+    // --------------------
+    odom.update(
+        kin_out.v,   // linear velocity (m/s)
+        yaw,         // absolute yaw (rad)
         dt
     );
 
-    const float pwmR = pidRight.update(
-        omegaR_target,
-        kinOut.omega_right,
-        dt
-    );
+    // --------------------
+    // DEBUG OUTPUT
+    // --------------------
+    Serial.print("x=");
+    Serial.print(odom.x(), 3);
+    Serial.print("  y=");
+    Serial.print(odom.y(), 3);
+    Serial.print("  yaw=");
+    Serial.print(odom.yaw(), 3);
 
-
-    leftMotor.setPWM((int)pwmL);
-    rightMotor.setPWM((int)pwmR);
-
-
-    Serial.print("yaw=");
-    Serial.print(imu.getYaw(), 3);
     Serial.print(" | v=");
-    Serial.print(kinOut.v, 3);
-    Serial.print(" w=");
-    Serial.print(kinOut.w, 3);
+    Serial.print(kin_out.v, 3);
+    Serial.print("  w=");
+    Serial.print(kin_out.w, 3);
 
-    Serial.print(" | ωL=");
-    Serial.print(kinOut.omega_left, 2);
-    Serial.print("/");
-    Serial.print(omegaL_target, 2);
+    Serial.print(" | dL=");
+    Serial.print(deltaL);
+    Serial.print(" dR=");
+    Serial.println(deltaR);
 
-    Serial.print(" ωR=");
-    Serial.print(kinOut.omega_right, 2);
-    Serial.print("/");
-    Serial.print(omegaR_target, 2);
-
-    Serial.print(" | pwmL=");
-    Serial.print(pwmL, 0);
-    Serial.print(" pwmR=");
-    Serial.println(pwmR, 0);
+    delay(10); // ~100 Hz debug
 }
