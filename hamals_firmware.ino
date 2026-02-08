@@ -129,7 +129,7 @@ void loop() {
     float w_cmd = w_target;
 
     if constexpr (ENABLE_YAW_CORRECTION) {
-        if (fabs(w_target) < YAW_CORRECTION_W_EPS) {
+        if (fabs(w_target) < YAW_CORRECTION_W_THRESHOLD) {
             float yaw_error = -yaw;
             w_cmd += YAW_CORRECTION_KP * yaw_error;
         }
