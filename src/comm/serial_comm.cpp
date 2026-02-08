@@ -32,10 +32,10 @@ void SerialComm::processChar(char c) {
 }
 
 void SerialComm::parseLine(const char* line) {
-    // CMD v w
-    if (strncmp(line, "CMD", 3) == 0) {
+    // cmd,v,w
+    if (strncmp(line, "cmd,", 4) == 0) {
         float v, w;
-        if (sscanf(line + 3, "%f %f", &v, &w) == 2) {
+        if (sscanf(line + 4, "%f,%f", &v, &w) == 2) {
             last_cmd_.v = v;
             last_cmd_.w = w;
             last_cmd_.valid = true;
@@ -54,10 +54,11 @@ CmdVel SerialComm::getCmdVel() {
 
 void SerialComm::sendOdom(float x, float y, float yaw,
                           float v, float w) {
-    Serial.print("ODOM ");
-    Serial.print(x, 3);   Serial.print(' ');
-    Serial.print(y, 3);   Serial.print(' ');
-    Serial.print(yaw, 3); Serial.print(' ');
-    Serial.print(v, 3);   Serial.print(' ');
-    Serial.println(w, 3);
+    Serial.print("odom,");
+    Serial.print(x, 3);   Serial.print(',');
+    Serial.print(y, 3);   Serial.print(',');
+    Serial.print(yaw, 3); Serial.print(',');
+    Serial.print(v, 3);   Serial.print(',');
+    Serial.print(w, 3);
+    Serial.print('\n');
 }
