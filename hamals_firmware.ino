@@ -146,6 +146,12 @@ void loop() {
     // --------------------
     float yaw = imu.getYaw();
 
+    // Yaw wrap to [-PI, PI]
+    while (yaw > PI)
+        yaw -= 2.0f * PI;
+    while (yaw < -PI)
+        yaw += 2.0f * PI;
+
     // --------------------
     // YAW CORRECTION
     // --------------------
@@ -157,12 +163,6 @@ void loop() {
             w_cmd += YAW_CORRECTION_KP * yaw_error;
         }
     }
-
-    // Yaw wrap to [-PI, PI]
-    while (yaw > PI)
-        yaw -= 2.0f * PI;
-    while (yaw < -PI)
-        yaw += 2.0f * PI;
 
     // --------------------
     // VELOCITY CMD

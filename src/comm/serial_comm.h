@@ -22,11 +22,6 @@ public:
 
 private:
     static constexpr size_t RX_BUF_SIZE = 64;
-    char rx_buf_[RX_BUF_SIZE];
-    size_t rx_len_ = 0;
-
     CmdVel last_cmd_;
-
     void processChar(char c);
-    void parseLine(const char* line);
 };
