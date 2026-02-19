@@ -4,7 +4,7 @@ class WheelPID {
 public:
     void setGains(float kp, float ki, float kd);
     void setOutputLimits(float min, float max);
-    void setRampLimit(float max_step);   // 👈 EKLENDİ
+    void setRampLimit(float max_step);
     void reset();
 
     float update(float target, float measured, float dt);

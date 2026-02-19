@@ -13,6 +13,7 @@
 #include "src/control/wheel_pid.h"
 #include "src/motor/motor.h"
 #include "src/comm/serial_comm.h"
+#include "src/timing/timing.h"
 
 // ======================================================
 // OBJECTS
@@ -51,7 +52,7 @@ Motor motorL(MOTOR_L_IN1, MOTOR_L_IN2, PWM_MAX);
 Motor motorR(MOTOR_R_IN1, MOTOR_R_IN2, PWM_MAX);
 
 // -------------------- TIMING ---------------------------
-unsigned long lastLoopMs = 0;
+Timing controlTimer(CONTROL_DT_S);
 
 // ======================================================
 // SETUP
@@ -61,7 +62,7 @@ void setup() {
     serial.begin(SERIAL_BAUDRATE);
     delay(1500);
 
-    Serial.println(" Hamals Firmware - SERIAL MODE");
+    Serial.println("Hamals Firmware - SERIAL MODE");
 
     leftEncoder.begin();
     rightEncoder.begin();
@@ -86,9 +87,9 @@ void setup() {
     pidR.setRampLimit(WHEEL_PID_RAMP_STEP);
 
     odom.reset();
-    lastLoopMs = millis();
+    controlTimer.reset();
 
-    Serial.println("▶️ Ready for cmd_vel");
+    Serial.println("Ready for cmd_vel");
 }
 
 // ======================================================
@@ -96,17 +97,22 @@ void setup() {
 // ======================================================
 void loop() {
     // --------------------
-    // Timing
+    // FAST ASYNC (IO)
     // --------------------
-    unsigned long now = millis();
-    float dt = (now - lastLoopMs) * 0.001f;
-    lastLoopMs = now;
-    if (dt <= 0.0f) return;
+    serial.update();
+    imu.update();
+
+    // --------------------
+    // FIXED CONTROL LOOP
+    // --------------------
+    if (!controlTimer.tick())
+        return;
+
+    float dt = controlTimer.dt();
 
     // --------------------
     // SERIAL RX (ROS → MCU)
     // --------------------
-    serial.update();
 
     float v_target = 0.0f;
     float w_target = 0.0f;
@@ -120,7 +126,6 @@ void loop() {
     // --------------------
     // IMU
     // --------------------
-    imu.update();
     float yaw = imu.getYaw();
 
     // --------------------
