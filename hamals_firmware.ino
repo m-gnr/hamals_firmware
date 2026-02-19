@@ -147,7 +147,7 @@ void loop() {
     float yaw = imu.getYaw();
 
     // --------------------
-    // YAW CORRECTION (CONFIG-DRIVEN)
+    // YAW CORRECTION
     // --------------------
     float w_cmd = w_target;
 

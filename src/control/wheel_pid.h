@@ -6,17 +6,19 @@ public:
     void setOutputLimits(float min, float max);
     void setRampLimit(float max_step);
     void reset();
-
     float update(float target, float measured, float dt);
 
 private:
-    float kp_ = 0, ki_ = 0, kd_ = 0;
-    float min_out_ = -255, max_out_ = 255;
+    float kp_           = 0.0f;
+    float ki_           = 0.0f;
+    float kd_           = 0.0f;
+    
+    // safe default
+    float min_out_      = -255.0f;
+    float max_out_      =  255.0f;
+    float max_step_     =  10.0f;   
 
-    float integral_ = 0;
-    float prev_error_ = 0;
-
-    // Ramp limiter
-    float last_output_ = 0;
-    float max_step_ = 20.0f;   // PWM 
+    float integral_     = 0.0f;
+    float prev_measured_= 0.0f;     // derivative kick fix
+    float last_output_  = 0.0f;
 };

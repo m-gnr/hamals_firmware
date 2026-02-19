@@ -16,9 +16,9 @@ void WheelPID::setRampLimit(float max_step) {
 }
 
 void WheelPID::reset() {
-    integral_     = 0;
-    prev_error_   = 0;
-    last_output_  = 0;
+    integral_        = 0.0f;
+    prev_measured_   = 0.0f;
+    last_output_     = 0.0f;
 }
 
 float WheelPID::update(float target, float measured, float dt) {
@@ -27,29 +27,43 @@ float WheelPID::update(float target, float measured, float dt) {
 
     float error = target - measured;
 
-    integral_ += error * dt;
+    // Derivative on measurement (avoids derivative kick on target change)
+    float derivative = -(measured - prev_measured_) / dt;
 
-    float derivative = (error - prev_error_) / dt;
-    prev_error_ = error;
+    // Tentative integral (used only for anti-windup check)
+    float new_integral = integral_ + error * dt;
 
+    // Raw output with tentative integral — for saturation detection only
+    float raw_output =
+        kp_ * error +
+        ki_ * new_integral +
+        kd_ * derivative;
+
+    // Anti-windup: only integrate if not pushing further into saturation
+    bool sat_high = raw_output > max_out_;
+    bool sat_low  = raw_output < min_out_;
+
+    if (!((sat_high && error > 0) || (sat_low && error < 0))) {
+        integral_ = new_integral;
+    }
+
+    // Final output with (possibly held) integral
     float output =
         kp_ * error +
         ki_ * integral_ +
         kd_ * derivative;
 
-    if (output > max_out_)
-        output = max_out_;
-    else if (output < min_out_)
-        output = min_out_;
+    // Clamp
+    if (output > max_out_)       output = max_out_;
+    else if (output < min_out_)  output = min_out_;
 
-
+    // Ramp limit (slew rate)
     float delta = output - last_output_;
+    if (delta > max_step_)       output = last_output_ + max_step_;
+    else if (delta < -max_step_) output = last_output_ - max_step_;
 
-    if (delta > max_step_)
-        output = last_output_ + max_step_;
-    else if (delta < -max_step_)
-        output = last_output_ - max_step_;
+    prev_measured_ = measured;
+    last_output_   = output;
 
-    last_output_ = output;
     return output;
 }
