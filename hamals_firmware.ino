@@ -158,6 +158,12 @@ void loop() {
         }
     }
 
+    // Yaw wrap to [-PI, PI]
+    while (yaw > PI)
+        yaw -= 2.0f * PI;
+    while (yaw < -PI)
+        yaw += 2.0f * PI;
+
     // --------------------
     // VELOCITY CMD
     // --------------------
