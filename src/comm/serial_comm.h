@@ -21,7 +21,17 @@ public:
                   float v, float w);
 
 private:
-    static constexpr size_t RX_BUF_SIZE = 64;
+    static constexpr size_t RX_BUF_SIZE = 128;
+
+    char payload_[RX_BUF_SIZE];
+    size_t payload_len_ = 0;
+
+    bool in_frame_ = false;
+
+    // Last received command
     CmdVel last_cmd_;
+
+    // Internal helpers
     void processChar(char c);
+    void parsePayload(const char* payload);
 };

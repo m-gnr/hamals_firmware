@@ -15,8 +15,6 @@ namespace {
 // -------------------- INTERNAL STATE ------------------
 
 static ParseState state_ = ParseState::WAIT_START;
-static char payload_[RX_BUF_SIZE];
-static uint16_t payload_len_ = 0;
 static uint8_t calc_checksum_ = 0;
 static uint8_t recv_checksum_ = 0;
 
@@ -48,7 +46,7 @@ void SerialComm::processChar(char c) {
 
         case ParseState::WAIT_START:
             if (c == '$') {
-                payload_len_ = 0;
+                this->payload_len_ = 0;
                 calc_checksum_ = 0;
                 state_ = ParseState::READ_PAYLOAD;
             }
@@ -56,11 +54,11 @@ void SerialComm::processChar(char c) {
 
         case ParseState::READ_PAYLOAD:
             if (c == '*') {
-                payload_[payload_len_] = '\0';
+                this->payload_[this->payload_len_] = '\0';
                 state_ = ParseState::READ_CHECKSUM_1;
             } else {
-                if (payload_len_ < RX_BUF_SIZE - 1) {
-                    payload_[payload_len_++] = c;
+                if (this->payload_len_ < SerialComm::RX_BUF_SIZE - 1) {
+                    this->payload_[this->payload_len_++] = c;
                     calc_checksum_ ^= (uint8_t)c;
                 } else {
                     // overflow → reset parser
@@ -79,7 +77,7 @@ void SerialComm::processChar(char c) {
 
             // Expect newline next but validate immediately
             if (recv_checksum_ == calc_checksum_) {
-                parsePayload(payload_);
+                parsePayload(this->payload_);
             }
 
             state_ = ParseState::WAIT_START;
