@@ -14,6 +14,7 @@
 #include "src/motor/motor.h"
 #include "src/comm/serial_comm.h"
 #include "src/timing/timing.h"
+#include "src/safety/watchdog.h"
 
 // ======================================================
 // OBJECTS
@@ -53,6 +54,7 @@ Motor motorR(MOTOR_R_IN1, MOTOR_R_IN2, PWM_MAX);
 
 // -------------------- TIMING ---------------------------
 Timing controlTimer(CONTROL_DT_S);
+Watchdog cmdWatchdog(CMD_VEL_TIMEOUT_S);
 
 // ======================================================
 // SETUP
@@ -89,6 +91,8 @@ void setup() {
     odom.reset();
     controlTimer.reset();
 
+    cmdWatchdog.reset();
+
     Serial.println("Ready for cmd_vel");
 }
 
@@ -121,6 +125,20 @@ void loop() {
         CmdVel cmd = serial.getCmdVel();
         v_target = cmd.v;
         w_target = cmd.w;
+        cmdWatchdog.feed();
+    }
+
+    // --------------------
+    // WATCHDOG (STATE MACHINE)
+    // --------------------
+    Watchdog::State wd_state = cmdWatchdog.state(CMD_VEL_GRACE_S);
+
+    if (wd_state == Watchdog::State::TIMEOUT) {
+        velocityCmd.reset();
+        pidL.reset();
+        pidR.reset();
+        motorL.stop();
+        motorR.stop();
     }
 
     // --------------------
@@ -143,7 +161,13 @@ void loop() {
     // --------------------
     // VELOCITY CMD
     // --------------------
-    velocityCmd.setTarget(v_target, w_cmd);
+    if (wd_state == Watchdog::State::GRACE) {
+        velocityCmd.setTarget(0.0f, 0.0f);
+    }
+    else if (wd_state == Watchdog::State::OK) {
+        velocityCmd.setTarget(v_target, w_cmd);
+    }
+
     velocityCmd.update(dt);
 
     float omegaLt, omegaRt;
@@ -169,11 +193,13 @@ void loop() {
     // --------------------
     // PID → MOTORS
     // --------------------
-    float pwmL = pidL.update(omegaLt, kinOut.omega_left, dt);
-    float pwmR = pidR.update(omegaRt, kinOut.omega_right, dt);
+    if (wd_state != Watchdog::State::TIMEOUT) {
+        float pwmL = pidL.update(omegaLt, kinOut.omega_left, dt);
+        float pwmR = pidR.update(omegaRt, kinOut.omega_right, dt);
 
-    motorL.setPWM((int)pwmL);
-    motorR.setPWM((int)pwmR);
+        motorL.setPWM((int)pwmL);
+        motorR.setPWM((int)pwmR);
+    }
 
     // --------------------
     // SERIAL TX (MCU → ROS)

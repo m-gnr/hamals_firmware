@@ -40,6 +40,12 @@ constexpr float MAX_ANGULAR_RAD_S = 1.5f;
 // Must match timing scheduler
 constexpr float CONTROL_DT_S = 0.01f;      // 10 ms
 
+// -------------------- Command Timeout -----------------
+
+// Maximum allowed time without new cmd_vel (seconds)
+constexpr float CMD_VEL_GRACE_S   = 0.3f;  // soft zone
+constexpr float CMD_VEL_TIMEOUT_S = 0.5f;  // hard stop
+
 // -------------------- PWM Limits ----------------------
 
 // PWM range (platform dependent)
