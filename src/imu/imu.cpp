@@ -19,7 +19,6 @@ bool IMU::begin()
         return false;
     }
 
-    // GAME ROTATION VECTOR
     bno08x_.enableReport(SH2_GAME_ROTATION_VECTOR, 5000); // 200 Hz
 
     delay(200);
@@ -60,14 +59,20 @@ void IMU::update()
         return;
     }
 
+    // Yaw wrap to [-PI, PI]
     yaw_ = raw_yaw - yaw_offset_;
+    while (yaw_ >  M_PI) yaw_ -= 2.0f * M_PI;
+    while (yaw_ < -M_PI) yaw_ += 2.0f * M_PI;
 
-    // Yaw rate
+    // Yaw rate (wrap-aware)
     const unsigned long now = millis();
     const float dt = (now - last_time_ms_) * 0.001f;
 
     if (dt > 0.0f) {
-        yaw_rate_ = (yaw_ - last_yaw_) / dt;
+        float dyaw = yaw_ - last_yaw_;
+        while (dyaw >  M_PI) dyaw -= 2.0f * M_PI;
+        while (dyaw < -M_PI) dyaw += 2.0f * M_PI;
+        yaw_rate_ = dyaw / dt;
         last_yaw_ = yaw_;
         last_time_ms_ = now;
     }
