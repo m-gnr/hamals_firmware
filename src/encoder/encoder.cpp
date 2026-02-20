@@ -4,15 +4,10 @@
 static Encoder* encoder_instance_1 = nullptr;
 static Encoder* encoder_instance_2 = nullptr;
 
-void IRAM_ATTR encoderISR_1() {
-    if (encoder_instance_1)
-        encoder_instance_1->handleISR();
-}
-
-void IRAM_ATTR encoderISR_2() {
-    if (encoder_instance_2)
-        encoder_instance_2->handleISR();
-}
+void IRAM_ATTR encoderISR_1A() { if (encoder_instance_1) encoder_instance_1->handleISR_A(); }
+void IRAM_ATTR encoderISR_1B() { if (encoder_instance_1) encoder_instance_1->handleISR_B(); }
+void IRAM_ATTR encoderISR_2A() { if (encoder_instance_2) encoder_instance_2->handleISR_A(); }
+void IRAM_ATTR encoderISR_2B() { if (encoder_instance_2) encoder_instance_2->handleISR_B(); }
 
 Encoder::Encoder(uint8_t pinA, uint8_t pinB)
     : pinA_(pinA), pinB_(pinB) {}
@@ -23,22 +18,29 @@ void Encoder::begin() {
 
     if (encoder_instance_1 == nullptr) {
         encoder_instance_1 = this;
-        attachInterrupt(digitalPinToInterrupt(pinA_), encoderISR_1, CHANGE);
+        attachInterrupt(digitalPinToInterrupt(pinA_), encoderISR_1A, CHANGE);
+        attachInterrupt(digitalPinToInterrupt(pinB_), encoderISR_1B, CHANGE);
     }
     else if (encoder_instance_2 == nullptr) {
         encoder_instance_2 = this;
-        attachInterrupt(digitalPinToInterrupt(pinA_), encoderISR_2, CHANGE);
+        attachInterrupt(digitalPinToInterrupt(pinA_), encoderISR_2A, CHANGE);
+        attachInterrupt(digitalPinToInterrupt(pinB_), encoderISR_2B, CHANGE);
     }
     else {
         Serial.println("ERROR: Too many Encoder instances!");
     }
 }
 
-void Encoder::handleISR() {
-    if (digitalRead(pinA_) == digitalRead(pinB_))
-        count_--;
-    else
-        count_++;
+void Encoder::handleISR_A() {
+    bool a = digitalRead(pinA_);
+    bool b = digitalRead(pinB_);
+    count_ += (a == b) ? -1 : 1;
+}
+
+void Encoder::handleISR_B() {
+    bool a = digitalRead(pinA_);
+    bool b = digitalRead(pinB_);
+    count_ += (a == b) ? 1 : -1;
 }
 
 int32_t Encoder::readDelta() {
@@ -50,7 +52,7 @@ int32_t Encoder::readDelta() {
     return delta;
 }
 
-int32_t Encoder::readTotal() const {
+int32_t Encoder::readTotal() {
     noInterrupts();
     int32_t total = count_;
     interrupts();

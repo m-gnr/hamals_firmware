@@ -8,11 +8,11 @@ public:
 
     void begin();
 
-    void handleISR();
+    void handleISR_A();
+    void handleISR_B();
 
     int32_t readDelta();
-
-    int32_t readTotal() const;
+    int32_t readTotal();
 
     void reset();
 

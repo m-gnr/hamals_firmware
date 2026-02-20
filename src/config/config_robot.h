@@ -6,8 +6,9 @@
 constexpr float WHEEL_RADIUS_M = 0.035f;   // 3.5 cm
 
 // Encoder resolution (counts per motor shaft revolution)
-constexpr int ENCODER_CPR_LEFT  = 1980;
-constexpr int ENCODER_CPR_RIGHT = 1980;
+constexpr int ENCODER_CPR_LEFT  = 3950;
+constexpr int ENCODER_CPR_RIGHT = 3950;
+
 
 // Gear reduction ratio (motor → wheel)
 constexpr float GEAR_RATIO = 30.0f;  
@@ -78,3 +79,8 @@ constexpr float WHEEL_PID_KD = 0.0f;
 
 // PWM ramp limit (per control step)
 constexpr float WHEEL_PID_RAMP_STEP = 10.0f;
+
+// -------------------- Serial TX -----------------------
+
+// Odometry transmit period (seconds)
+constexpr float ODOM_TX_DT_S = 0.02f;      // 50 Hz
