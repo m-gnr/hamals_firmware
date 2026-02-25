@@ -10,9 +10,6 @@ constexpr int ENCODER_CPR_LEFT  = 3950;
 constexpr int ENCODER_CPR_RIGHT = 3950;
 
 
-// Gear reduction ratio (motor → wheel)
-constexpr float GEAR_RATIO = 30.0f;  
-
 // DEBUG NOTE (Encoder Validation):
 // - Rotate ONE wheel exactly 1 full revolution by hand
 // - Count encoder pulses reported by firmware
