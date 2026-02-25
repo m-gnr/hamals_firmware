@@ -1,5 +1,6 @@
 #include "encoder.h"
 #include <Arduino.h>
+#include "soc/gpio_struct.h"
 
 static Encoder* encoder_instance_1 = nullptr;
 static Encoder* encoder_instance_2 = nullptr;
@@ -10,9 +11,7 @@ void IRAM_ATTR encoderISR_2A() { if (encoder_instance_2) encoder_instance_2->han
 void IRAM_ATTR encoderISR_2B() { if (encoder_instance_2) encoder_instance_2->handleISR_B(); }
 
 Encoder::Encoder(uint8_t pinA, uint8_t pinB, int direction)
-    : pinA_(pinA),
-      pinB_(pinB),
-      direction_(direction) {}
+    : pinA_(pinA), pinB_(pinB), direction_(direction) {}
 
 void Encoder::begin() {
     pinMode(pinA_, INPUT_PULLUP);
@@ -33,15 +32,17 @@ void Encoder::begin() {
     }
 }
 
-void Encoder::handleISR_A() {
-    bool a = digitalRead(pinA_);
-    bool b = digitalRead(pinB_);
+void IRAM_ATTR Encoder::handleISR_A() {
+    uint32_t gpio = GPIO.in;                
+    bool a = (gpio >> pinA_) & 1u;
+    bool b = (gpio >> pinB_) & 1u;
     count_ += direction_ * ((a == b) ? -1 : 1);
 }
 
-void Encoder::handleISR_B() {
-    bool a = digitalRead(pinA_);
-    bool b = digitalRead(pinB_);
+void IRAM_ATTR Encoder::handleISR_B() {
+    uint32_t gpio = GPIO.in;
+    bool a = (gpio >> pinA_) & 1u;
+    bool b = (gpio >> pinB_) & 1u;
     count_ += direction_ * ((a == b) ? 1 : -1);
 }
 
