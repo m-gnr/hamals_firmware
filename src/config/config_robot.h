@@ -55,6 +55,12 @@ constexpr int PWM_MIN = 0;
 // Maximum wheel angular acceleration (rad/s^2)
 constexpr float MAX_WHEEL_ACCEL_RAD_S2 = 50.0f;
 
+// -------------------- IMU Spike Guard ------------------
+
+// Maximum allowed yaw jump per control step (rad)
+// If |dyaw| exceeds this, IMU sample is rejected
+constexpr float IMU_SPIKE_THRESHOLD_RAD = 0.4f;
+
 // -------------------- Yaw Correction ------------------
 
 // Enable heading hold (yaw correction) when w ≈ 0

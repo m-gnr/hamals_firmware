@@ -57,6 +57,10 @@ Timing controlTimer(CONTROL_DT_S);
 Timing odomTxTimer(ODOM_TX_DT_S);
 Watchdog cmdWatchdog(CMD_VEL_TIMEOUT_S);
 
+// -------------------- CONTROL STATE -------------------
+float last_yaw = 0.0f;
+float yaw_rate = 0.0f;
+
 // ======================================================
 // SETUP
 // ======================================================
@@ -143,6 +147,32 @@ void loop() {
     // IMU (yaw wrap IMU sınıfında yapılıyor)
     // --------------------
     float yaw = imu.getYaw();
+
+    // --------------------
+    // YAW RATE
+    // --------------------
+    float dyaw = yaw - last_yaw;
+
+    // Wrap-aware difference
+    if (dyaw > M_PI)       dyaw -= 2.0f * M_PI;
+    else if (dyaw < -M_PI) dyaw += 2.0f * M_PI;
+
+    // --------------------
+    // IMU SPIKE GUARD
+    // --------------------
+    if (fabs(dyaw) > IMU_SPIKE_THRESHOLD_RAD) {
+        // Reject spike → freeze yaw change for this cycle
+        dyaw = 0.0f;
+        yaw = last_yaw;
+    }
+
+    if (dt > 0.0f) {
+        yaw_rate = dyaw / dt;
+    } else {
+        yaw_rate = 0.0f;
+    }
+
+    last_yaw = yaw;
 
     // --------------------
     // YAW CORRECTION

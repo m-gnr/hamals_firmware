@@ -19,12 +19,13 @@ bool IMU::begin()
         return false;
     }
 
-    bno08x_.enableReport(SH2_GAME_ROTATION_VECTOR, 5000); // 200 Hz
+    // 200 Hz internal update
+    bno08x_.enableReport(SH2_GAME_ROTATION_VECTOR, 5000);
 
     delay(200);
 
     yaw_zeroed_ = false;
-    last_time_ms_ = millis();
+    yaw_ = 0.0f;
 
     return true;
 }
@@ -43,7 +44,7 @@ void IMU::update()
     const float qk = sensorValue_.un.gameRotationVector.k;
     const float qr = sensorValue_.un.gameRotationVector.real;
 
-    // Yaw (rad)
+    // Convert quaternion → yaw (rad)
     const float raw_yaw = atan2(
         2.0f * (qi * qj + qk * qr),
         1.0f - 2.0f * (qj * qj + qk * qk)
@@ -53,37 +54,19 @@ void IMU::update()
     if (!yaw_zeroed_) {
         yaw_offset_ = raw_yaw;
         yaw_ = 0.0f;
-        last_yaw_ = 0.0f;
-        last_time_ms_ = millis();
         yaw_zeroed_ = true;
         return;
     }
 
-    // Yaw wrap to [-PI, PI]
+    // Apply offset
     yaw_ = raw_yaw - yaw_offset_;
+
+    // Wrap to [-PI, PI]
     while (yaw_ >  M_PI) yaw_ -= 2.0f * M_PI;
     while (yaw_ < -M_PI) yaw_ += 2.0f * M_PI;
-
-    // Yaw rate (wrap-aware)
-    const unsigned long now = millis();
-    const float dt = (now - last_time_ms_) * 0.001f;
-
-    if (dt > 0.0f) {
-        float dyaw = yaw_ - last_yaw_;
-        while (dyaw >  M_PI) dyaw -= 2.0f * M_PI;
-        while (dyaw < -M_PI) dyaw += 2.0f * M_PI;
-        yaw_rate_ = dyaw / dt;
-        last_yaw_ = yaw_;
-        last_time_ms_ = now;
-    }
 }
 
 float IMU::getYaw() const
 {
     return yaw_;
-}
-
-float IMU::getYawRate() const
-{
-    return yaw_rate_;
 }

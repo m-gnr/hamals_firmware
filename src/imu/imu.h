@@ -7,8 +7,13 @@
 // -------------------------------------------------------
 // Responsibility:
 //  - Initialize IMU
-//  - Provide yaw (rad) and yaw rate (rad/s)
+//  - Provide yaw (rad)
 //  - Zero yaw at startup
+//
+// NOTE:
+//  - No time handling
+//  - No yaw rate calculation
+//  - All timing handled in control loop
 // =======================================================
 
 class IMU {
@@ -18,11 +23,9 @@ public:
         uint8_t rst_pin);
 
     bool begin();
-
     void update();
 
     float getYaw() const;
-    float getYawRate() const;
 
 private:
     uint8_t cs_;
@@ -33,11 +36,6 @@ private:
     sh2_SensorValue_t sensorValue_;
 
     float yaw_ = 0.0f;
-    float last_yaw_ = 0.0f;
-    float yaw_rate_ = 0.0f;
-
     float yaw_offset_ = 0.0f;
     bool  yaw_zeroed_ = false;
-
-    unsigned long last_time_ms_ = 0;
 };
