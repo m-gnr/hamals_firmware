@@ -3,7 +3,7 @@
 
 // -------------------- Encoder Pins ---------------------
 // Left wheel encoder
-#define ENC_L_A   D19   // GPIO10 - interrupt capable - Channel A
+#define ENC_L_A   D12   // GPIO10 - interrupt capable - Channel A
 #define ENC_L_B   D0    // GPIO1  - interrupt capable - Channel B
 
 // Right wheel encoder
@@ -21,8 +21,8 @@
 
 // -------------------- IMU (BNO085 - SPI) ----------------
 #define IMU_CS    D4    // GPIO42 - Chip Select
-#define IMU_INT   D0    // GPIO2  - Data Ready Interrupt
-#define IMU_RST   D12    // GPIO38 - Reset
+#define IMU_INT   D1    // GPIO2  - Data Ready Interrupt
+#define IMU_RST   D8    // GPIO38 - Reset
 
 // -------------------- Serial ---------------------------
 #define SERIAL_BAUDRATE 115200
