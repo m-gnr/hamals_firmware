@@ -9,6 +9,9 @@ constexpr float WHEEL_RADIUS_M = 0.035f;   // 3.5 cm
 constexpr int ENCODER_CPR_LEFT  = 3950;
 constexpr int ENCODER_CPR_RIGHT = 3950;
 
+// ---------------- Encoder Direction ----------------
+constexpr int ENC_L_DIRECTION = -1;   // -1 normal, 1 reverse
+constexpr int ENC_R_DIRECTION = -1;
 
 // DEBUG NOTE (Encoder Validation):
 // - Rotate ONE wheel exactly 1 full revolution by hand

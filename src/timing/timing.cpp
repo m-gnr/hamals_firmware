@@ -3,28 +3,29 @@
 
 Timing::Timing(float period_s)
     : period_s_(period_s),
-      last_ms_(0),
+      last_us_(0),
       dt_(0.0f)
 {
 }
 
 bool Timing::tick()
 {
-    uint32_t now = millis();
+    uint32_t now_us = micros();
 
-    if (last_ms_ == 0) {
-        last_ms_ = now;
+    if (last_us_ == 0) {
+        last_us_ = now_us;
         return false;
     }
 
-    uint32_t elapsed_ms = now - last_ms_;
-    float elapsed_s = elapsed_ms * 0.001f;
+    uint32_t elapsed_us = now_us - last_us_;  // overflow-safe (uint32_t)
+    uint32_t period_us  = static_cast<uint32_t>(period_s_ * 1e6f);
 
-    if (elapsed_s < period_s_)
+    if (elapsed_us < period_us)
         return false;
 
-    dt_ = elapsed_s;
-    last_ms_ = now;
+    dt_ = elapsed_us * 1e-6f;   
+    last_us_ = now_us;
+
     return true;
 }
 
@@ -35,6 +36,6 @@ float Timing::dt() const
 
 void Timing::reset()
 {
-    last_ms_ = 0;
+    last_us_ = 0;
     dt_ = 0.0f;
 }

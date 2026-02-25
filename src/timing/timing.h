@@ -13,6 +13,6 @@ public:
 
 private:
     float period_s_;
-    uint32_t last_ms_;
+    uint32_t last_us_;
     float dt_;
 };

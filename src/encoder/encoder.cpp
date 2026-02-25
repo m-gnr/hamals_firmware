@@ -9,8 +9,10 @@ void IRAM_ATTR encoderISR_1B() { if (encoder_instance_1) encoder_instance_1->han
 void IRAM_ATTR encoderISR_2A() { if (encoder_instance_2) encoder_instance_2->handleISR_A(); }
 void IRAM_ATTR encoderISR_2B() { if (encoder_instance_2) encoder_instance_2->handleISR_B(); }
 
-Encoder::Encoder(uint8_t pinA, uint8_t pinB)
-    : pinA_(pinA), pinB_(pinB) {}
+Encoder::Encoder(uint8_t pinA, uint8_t pinB, int direction)
+    : pinA_(pinA),
+      pinB_(pinB),
+      direction_(direction) {}
 
 void Encoder::begin() {
     pinMode(pinA_, INPUT_PULLUP);
@@ -34,13 +36,13 @@ void Encoder::begin() {
 void Encoder::handleISR_A() {
     bool a = digitalRead(pinA_);
     bool b = digitalRead(pinB_);
-    count_ += (a == b) ? -1 : 1;
+    count_ += direction_ * ((a == b) ? -1 : 1);
 }
 
 void Encoder::handleISR_B() {
     bool a = digitalRead(pinA_);
     bool b = digitalRead(pinB_);
-    count_ += (a == b) ? 1 : -1;
+    count_ += direction_ * ((a == b) ? 1 : -1);
 }
 
 int32_t Encoder::readDelta() {

@@ -24,8 +24,8 @@
 SerialComm serial;
 
 // Encoders
-Encoder leftEncoder(ENC_L_A, ENC_L_B);
-Encoder rightEncoder(ENC_R_A, ENC_R_B);
+Encoder leftEncoder(ENC_L_A, ENC_L_B, ENC_L_DIRECTION);
+Encoder rightEncoder(ENC_R_A, ENC_R_B, ENC_R_DIRECTION);  
 
 // IMU
 IMU imu(IMU_CS, IMU_INT, IMU_RST);
