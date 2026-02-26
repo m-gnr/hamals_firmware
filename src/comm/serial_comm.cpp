@@ -106,12 +106,12 @@ CmdVel SerialComm::getCmdVel() {
     return last_cmd_;
 }
 
-void SerialComm::sendOdom(float x, float y, float yaw,
+void SerialComm::sendOdom(uint32_t t_us, float x, float y, float yaw,
                           float v, float w) {
     char payload[96];
     snprintf(payload, sizeof(payload),
-             "ODOM,%.3f,%.3f,%.3f,%.3f,%.3f",
-             x, y, yaw, v, w);
+             "ODOM,%lu,%.3f,%.3f,%.3f,%.3f,%.3f",
+             (unsigned long)t_us, x, y, yaw, v, w);
 
     uint8_t cs = 0;
     for (size_t i = 0; payload[i] != '\0'; ++i)

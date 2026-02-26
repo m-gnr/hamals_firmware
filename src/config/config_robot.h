@@ -3,11 +3,12 @@
 // -------------------- Wheel & Encoder ------------------
 
 // Wheel radius in meters
-constexpr float WHEEL_RADIUS_M = 0.035f;   // 3.5 cm
+constexpr float WHEEL_RADIUS_M = 0.03729f;   // 3.5 cm
 
-// Encoder resolution (counts per motor shaft revolution)
-constexpr int ENCODER_CPR_LEFT  = 3950;
-constexpr int ENCODER_CPR_RIGHT = 3950;
+// Encoder resolution counts per WHEEL revolution (measured by 10-turn hand test)
+// (quadrature decoding included)
+constexpr int ENCODER_CPR_LEFT  = 3959;
+constexpr int ENCODER_CPR_RIGHT = 3963;
 
 // ---------------- Encoder Direction ----------------
 constexpr int ENC_L_DIRECTION = -1;   // -1 normal, 1 reverse

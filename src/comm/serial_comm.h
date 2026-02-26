@@ -17,7 +17,8 @@ public:
     bool hasCmdVel() const;
     CmdVel getCmdVel();
 
-    void sendOdom(float x, float y, float yaw,
+    void sendOdom(uint32_t t_us,
+                  float x, float y, float yaw,
                   float v, float w);
 
 private:

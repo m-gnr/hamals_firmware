@@ -233,12 +233,14 @@ void loop() {
     // SERIAL TX (MCU → ROS) — 50Hz
     // --------------------
     if (odomTxTimer.tick()) {
+        uint32_t t_us = micros();  // <-- gönderme anı timestamp
         serial.sendOdom(
+            t_us,
             odom.x(),
             odom.y(),
             odom.yaw(),
             kinOut.v,
-            kinOut.w
+            yaw_rate
         );
     }
 }
