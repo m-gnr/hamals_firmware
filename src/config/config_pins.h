@@ -4,7 +4,7 @@
 // -------------------- Encoder Pins ---------------------
 // Left wheel encoder
 #define ENC_L_A   D12   // GPIO10 - interrupt capable - Channel A
-#define ENC_L_B   D11   // GPIO21 - interrupt capable - Channel B
+#define ENC_L_B   D0   // GPIO1 - interrupt capable - Channel B
 
 // Right wheel encoder
 #define ENC_R_A   D13   // GPIO3  - interrupt capable - Channel A
