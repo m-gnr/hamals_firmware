@@ -14,7 +14,6 @@
 #include "src/motor/motor.h"
 #include "src/comm/serial_comm.h"
 #include "src/timing/timing.h"
-#include "src/safety/watchdog.h"
 
 // ======================================================
 // OBJECTS
@@ -25,7 +24,7 @@ SerialComm serial;
 
 // Encoders
 Encoder leftEncoder(ENC_L_A, ENC_L_B, ENC_L_DIRECTION);
-Encoder rightEncoder(ENC_R_A, ENC_R_B, ENC_R_DIRECTION);  
+Encoder rightEncoder(ENC_R_A, ENC_R_B, ENC_R_DIRECTION);
 
 // IMU
 IMU imu(IMU_CS, IMU_INT, IMU_RST);
@@ -55,11 +54,11 @@ Motor motorR(MOTOR_R_IN1, MOTOR_R_IN2, PWM_MAX);
 // -------------------- TIMING ---------------------------
 Timing controlTimer(CONTROL_DT_S);
 Timing odomTxTimer(ODOM_TX_DT_S);
-Watchdog cmdWatchdog(CMD_VEL_TIMEOUT_S);
 
 // -------------------- CONTROL STATE -------------------
-float last_yaw = 0.0f;
-float yaw_rate = 0.0f;
+static float last_yaw = 0.0f;
+static float yaw_rate = 0.0f;
+
 
 // ======================================================
 // SETUP
@@ -91,12 +90,14 @@ void setup() {
     pidL.setRampLimit(WHEEL_PID_RAMP_STEP);
     pidR.setRampLimit(WHEEL_PID_RAMP_STEP);
 
+    pidL.setDeadzone(PWM_MIN_START_L, PWM_MIN_RUN_L, DEADZONE_CMD_EPS, DEADZONE_MEAS_EPS);
+    pidR.setDeadzone(PWM_MIN_START_R, PWM_MIN_RUN_R, DEADZONE_CMD_EPS, DEADZONE_MEAS_EPS);
+
     odom.reset();
     controlTimer.reset();
     odomTxTimer.reset();
-    cmdWatchdog.reset();
 
-    Serial.println("Ready for cmd_vel");
+    Serial.println("Ready");
 }
 
 // ======================================================
@@ -115,36 +116,30 @@ void loop() {
     if (!controlTimer.tick())
         return;
 
-    float dt = controlTimer.dt();
+    const float dt = controlTimer.dt();
 
     // --------------------
-    // SERIAL RX (ROS → MCU)
+    // SERIAL RX (ROS → MCU) (latched)
     // --------------------
-    float v_target = 0.0f;
-    float w_target = 0.0f;
+    static float v_target = 0.0f;
+    static float w_target = 0.0f;
 
     if (serial.hasCmdVel()) {
-        CmdVel cmd = serial.getCmdVel();
+        const CmdVel cmd = serial.getCmdVel();
         v_target = cmd.v;
         w_target = cmd.w;
-        cmdWatchdog.feed();
     }
 
     // --------------------
-    // WATCHDOG (STATE MACHINE)
+    // STOP HANDLING: reset PID integrators to avoid creep after cmd_vel=0
     // --------------------
-    Watchdog::State wd_state = cmdWatchdog.state(CMD_VEL_GRACE_S);
-
-    if (wd_state == Watchdog::State::TIMEOUT) {
-        velocityCmd.reset();
+    if (fabs(v_target) < 0.01f && fabs(w_target) < 0.01f) {
         pidL.reset();
         pidR.reset();
-        motorL.stop();
-        motorR.stop();
     }
 
     // --------------------
-    // IMU (yaw wrap IMU sınıfında yapılıyor)
+    // IMU (yaw wrap handled in IMU class)
     // --------------------
     float yaw = imu.getYaw();
 
@@ -153,35 +148,25 @@ void loop() {
     // --------------------
     float dyaw = yaw - last_yaw;
 
-    // Wrap-aware difference
     if (dyaw > M_PI)       dyaw -= 2.0f * M_PI;
     else if (dyaw < -M_PI) dyaw += 2.0f * M_PI;
 
-    // --------------------
-    // IMU SPIKE GUARD
-    // --------------------
+    // IMU spike guard
     if (fabs(dyaw) > IMU_SPIKE_THRESHOLD_RAD) {
-        // Reject spike → freeze yaw change for this cycle
         dyaw = 0.0f;
-        yaw = last_yaw;
+        yaw  = last_yaw;
     }
 
-    if (dt > 0.0f) {
-        yaw_rate = dyaw / dt;
-    } else {
-        yaw_rate = 0.0f;
-    }
-
+    yaw_rate = (dt > 0.0f) ? (dyaw / dt) : 0.0f;
     last_yaw = yaw;
 
     // --------------------
     // YAW CORRECTION
     // --------------------
     float w_cmd = w_target;
-
     if constexpr (ENABLE_YAW_CORRECTION) {
         if (fabs(w_target) < YAW_CORRECTION_W_THRESHOLD) {
-            float yaw_error = -yaw;
+            const float yaw_error = -yaw;
             w_cmd += YAW_CORRECTION_KP * yaw_error;
         }
     }
@@ -189,29 +174,24 @@ void loop() {
     // --------------------
     // VELOCITY CMD
     // --------------------
-    if (wd_state == Watchdog::State::GRACE) {
-        velocityCmd.setTarget(0.0f, 0.0f);
-    }
-    else if (wd_state == Watchdog::State::OK) {
-        velocityCmd.setTarget(v_target, w_cmd);
-    }
-
+    // Apply last latched command; TIMEOUT clears targets above.
+    velocityCmd.setTarget(v_target, w_cmd);
     velocityCmd.update(dt);
 
-    float omegaLt, omegaRt;
+    float omegaLt = 0.0f, omegaRt = 0.0f;
     velocityCmd.getWheelTargets(omegaLt, omegaRt);
 
     // --------------------
     // ENCODERS
     // --------------------
-    int32_t dL = leftEncoder.readDelta();
-    int32_t dR = rightEncoder.readDelta();
+    const int32_t dL = leftEncoder.readDelta();
+    const int32_t dR = rightEncoder.readDelta();
 
     // --------------------
     // KINEMATICS
     // --------------------
-    KinematicsInput kinIn{ dL, dR, dt };
-    KinematicsOutput kinOut = kinematics.update(kinIn);
+    const KinematicsInput kinIn{ dL, dR, dt };
+    const KinematicsOutput kinOut = kinematics.update(kinIn);
 
     // --------------------
     // ODOMETRY
@@ -221,26 +201,24 @@ void loop() {
     // --------------------
     // PID → MOTORS
     // --------------------
-    if (wd_state != Watchdog::State::TIMEOUT) {
-        float pwmL = pidL.update(omegaLt, kinOut.omega_left, dt);
-        float pwmR = pidR.update(omegaRt, kinOut.omega_right, dt);
-
-        motorL.setPWM((int)pwmL);
-        motorR.setPWM((int)pwmR);
-    }
+    const float pwmL = pidL.update(omegaLt, kinOut.omega_left, dt);
+    const float pwmR = pidR.update(omegaRt, kinOut.omega_right, dt);
+    motorL.setPWM((int)pwmL);
+    motorR.setPWM((int)pwmR);
 
     // --------------------
-    // SERIAL TX (MCU → ROS) — 50Hz
+    // SERIAL TX (MCU → ROS)
     // --------------------
     if (odomTxTimer.tick()) {
-        uint32_t t_us = micros();  // <-- gönderme anı timestamp
+        const uint32_t t_us = micros();
         serial.sendOdom(
             t_us,
             odom.x(),
             odom.y(),
             odom.yaw(),
             kinOut.v,
-            yaw_rate
+            kinOut.w
         );
     }
+
 }

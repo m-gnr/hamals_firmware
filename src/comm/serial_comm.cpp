@@ -1,5 +1,7 @@
 #include "serial_comm.h"
 #include <string.h>
+#include <Arduino.h>
+#include <stdio.h>
 
 // -------------------- PARSER STATE --------------------
 
@@ -20,11 +22,11 @@ static uint8_t recv_checksum_ = 0;
 
 // -------------------- UTILS ---------------------------
 
-static uint8_t hexToByte(char c) {
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
-    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
-    return 0;
+static bool hexNibble(char c, uint8_t& out) {
+    if (c >= '0' && c <= '9') { out = (uint8_t)(c - '0'); return true; }
+    if (c >= 'A' && c <= 'F') { out = (uint8_t)(c - 'A' + 10); return true; }
+    if (c >= 'a' && c <= 'f') { out = (uint8_t)(c - 'a' + 10); return true; }
+    return false;
 }
 
 // -------------------- SERIAL COMM ---------------------
@@ -62,18 +64,47 @@ void SerialComm::processChar(char c) {
                     calc_checksum_ ^= (uint8_t)c;
                 } else {
                     // overflow → reset parser
+                    this->payload_len_ = 0;
                     state_ = ParseState::WAIT_START;
                 }
             }
             break;
 
         case ParseState::READ_CHECKSUM_1:
-            recv_checksum_ = hexToByte(c) << 4;
-            state_ = ParseState::READ_CHECKSUM_2;
+            // Ignore line endings if present
+            if (c == '\r' || c == '\n') {
+                state_ = ParseState::WAIT_START;
+                break;
+            }
+
+            {
+                uint8_t nib = 0;
+                if (!hexNibble(c, nib)) {
+                    state_ = ParseState::WAIT_START;
+                    break;
+                }
+
+                recv_checksum_ = (uint8_t)(nib << 4);
+                state_ = ParseState::READ_CHECKSUM_2;
+            }
             break;
 
         case ParseState::READ_CHECKSUM_2:
-            recv_checksum_ |= hexToByte(c);
+            // Ignore line endings if present
+            if (c == '\r' || c == '\n') {
+                state_ = ParseState::WAIT_START;
+                break;
+            }
+
+            {
+                uint8_t nib = 0;
+                if (!hexNibble(c, nib)) {
+                    state_ = ParseState::WAIT_START;
+                    break;
+                }
+
+                recv_checksum_ |= nib;
+            }
 
             // Expect newline next but validate immediately
             if (recv_checksum_ == calc_checksum_) {
@@ -108,21 +139,34 @@ CmdVel SerialComm::getCmdVel() {
 
 void SerialComm::sendOdom(uint32_t t_us, float x, float y, float yaw,
                           float v, float w) {
+    // Build payload
     char payload[96];
-    snprintf(payload, sizeof(payload),
-             "ODOM,%lu,%.3f,%.3f,%.3f,%.3f,%.3f",
-             (unsigned long)t_us, x, y, yaw, v, w);
+    const int p_len = snprintf(payload, sizeof(payload),
+                               "ODOM,%lu,%.3f,%.3f,%.3f,%.3f,%.3f",
+                               (unsigned long)t_us, x, y, yaw, v, w);
+    if (p_len <= 0 || p_len >= (int)sizeof(payload)) {
+        return;
+    }
 
+    // XOR checksum over payload
     uint8_t cs = 0;
-    for (size_t i = 0; payload[i] != '\0'; ++i)
+    for (int i = 0; i < p_len; ++i) {
         cs ^= (uint8_t)payload[i];
+    }
 
-    Serial.print('$');
-    Serial.print(payload);
-    Serial.print('*');
+    // Build full frame
+    char frame[128];
+    const int f_len = snprintf(frame, sizeof(frame), "$%s*%02X\n", payload, cs);
+    if (f_len <= 0 || f_len >= (int)sizeof(frame)) {
+        return;
+    }
 
-    if (cs < 16) Serial.print('0');
-    Serial.print(cs, HEX);
+    // NON-BLOCKING DROP STRATEGY:
+    // If the USB-CDC TX buffer is low (host stalled), skip this telemetry frame
+    // so the control loop never blocks.
+    if (Serial.availableForWrite() < f_len) {
+        return;
+    }
 
-    Serial.print('\n');
+    Serial.write((const uint8_t*)frame, (size_t)f_len);
 }

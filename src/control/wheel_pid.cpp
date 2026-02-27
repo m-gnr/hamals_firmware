@@ -1,4 +1,5 @@
 #include "wheel_pid.h"
+#include <cmath>
 
 void WheelPID::setGains(float kp, float ki, float kd) {
     kp_ = kp;
@@ -13,6 +14,15 @@ void WheelPID::setOutputLimits(float min, float max) {
 
 void WheelPID::setRampLimit(float max_step) {
     max_step_ = max_step;
+}
+
+// Deadzone / static friction compensation (per-wheel)
+void WheelPID::setDeadzone(float pwm_start, float pwm_run, float cmd_eps, float meas_eps) {
+    deadzone_enabled_ = true;
+    pwm_start_ = fabs(pwm_start);
+    pwm_run_   = fabs(pwm_run);
+    cmd_eps_   = fabs(cmd_eps);
+    meas_eps_  = fabs(meas_eps);
 }
 
 void WheelPID::reset() {
@@ -61,6 +71,17 @@ float WheelPID::update(float target, float measured, float dt) {
     float delta = output - last_output_;
     if (delta > max_step_)       output = last_output_ + max_step_;
     else if (delta < -max_step_) output = last_output_ - max_step_;
+
+    // Deadzone / static friction compensation
+    // If target is non-zero but measured is ~0, force a minimum PWM kick.
+    if (deadzone_enabled_ && fabs(target) > cmd_eps_) {
+        const float abs_meas = fabs(measured);
+        const float abs_out  = fabs(output);
+        const float min_pwm  = (abs_meas < meas_eps_) ? pwm_start_ : pwm_run_;
+        if (abs_out < min_pwm) {
+            output = (target >= 0.0f) ? min_pwm : -min_pwm;
+        }
+    }
 
     prev_measured_ = measured;
     last_output_   = output;
