@@ -16,7 +16,7 @@ IMU::IMU(uint8_t cs_pin,
 
 bool IMU::begin()
 {
-    if (!bno08x_.begin_SPI(cs_, int_)) {
+    if (!bno08x_.begin_SPI(cs_, int_, &SPI, 3000000)) {
         return false;
     }
 
@@ -43,12 +43,10 @@ void IMU::update()
 
     switch (sensorValue_.sensorId) {
         case SH2_GYROSCOPE_CALIBRATED:
-            // Adafruit_BNO08x reports gyro in rad/s
             gz_ = sensorValue_.un.gyroscope.z;
             break;
 
         case SH2_LINEAR_ACCELERATION:
-            // Linear acceleration (gravity removed), m/s^2
             ax_ = sensorValue_.un.linearAcceleration.x;
             ay_ = sensorValue_.un.linearAcceleration.y;
             az_ = sensorValue_.un.linearAcceleration.z;

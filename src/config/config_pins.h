@@ -24,4 +24,4 @@
 #define IMU_RST   D8    // GPIO38 - Reset
 
 // -------------------- Serial ---------------------------
-#define SERIAL_BAUDRATE 115200
+#define SERIAL_BAUDRATE 230400

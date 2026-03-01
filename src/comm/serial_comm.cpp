@@ -176,9 +176,9 @@ void SerialComm::sendImu(uint32_t t_us, float gz, float ax, float ay, float az) 
     // Build payload
     char payload[96];
     const int p_len = snprintf(payload, sizeof(payload),
-                               "IMU,%lu,%.6f,%.6f,%.6f,%.6f",
-                               (unsigned long)t_us,
-                               gz, ax, ay, az);
+                            "IMU,%lu,%.4f,%.4f,%.4f,%.4f",  // %.6f → %.4f
+                            (unsigned long)t_us,
+                            gz, ax, ay, az);
     if (p_len <= 0 || p_len >= (int)sizeof(payload)) {
         return;
     }
