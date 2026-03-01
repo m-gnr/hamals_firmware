@@ -133,12 +133,25 @@ void loop() {
     serial.update();
 
     // --------------------
-    // TELEMETRY INPUTS (sample every loop)
+    // ENCODER SAMPLING (every loop)
     // --------------------
-    static int32_t last_dL = 0;
-    static int32_t last_dR = 0;
-    last_dL = leftEncoder.readDelta();
-    last_dR = rightEncoder.readDelta();
+    static int32_t last_dL_ctrl = 0;
+    static int32_t last_dR_ctrl = 0;
+
+    // Accumulate ticks for telemetry (ENC_TX_DT_S window)
+    static int32_t enc_accum_L = 0;
+    static int32_t enc_accum_R = 0;
+
+    const int32_t dL_step = leftEncoder.readDelta();
+    const int32_t dR_step = rightEncoder.readDelta();
+
+    // Control uses per-loop deltas
+    last_dL_ctrl = dL_step;
+    last_dR_ctrl = dR_step;
+
+    // Telemetry sends summed ticks since last ENC publish
+    enc_accum_L += dL_step;
+    enc_accum_R += dR_step;
 
     // --------------------
     // SERIAL TX (MCU → ROS) - independent of control tick
@@ -151,7 +164,9 @@ void loop() {
 
     if (encTxTimer.tick()) {
         if (!sent_any) { t_us = micros(); sent_any = true; }
-        serial.sendEnc(t_us, last_dL, last_dR);
+        serial.sendEnc(t_us, enc_accum_L, enc_accum_R);
+        enc_accum_L = 0;
+        enc_accum_R = 0;
     }
 
     if (imuTxTimer.tick()) {
@@ -189,9 +204,9 @@ void loop() {
     float omegaLt = 0.0f, omegaRt = 0.0f;
     velocityCmd.getWheelTargets(omegaLt, omegaRt);
 
-    // Use sampled deltas (do NOT readDelta again)
-    const int32_t dL = last_dL;
-    const int32_t dR = last_dR;
+    // Use per-loop encoder deltas for control (do NOT readDelta again)
+    const int32_t dL = last_dL_ctrl;
+    const int32_t dR = last_dR_ctrl;
 
     const KinematicsInput kinIn{ dL, dR, dt };
     const KinematicsOutput kinOut = kinematics.update(kinIn);

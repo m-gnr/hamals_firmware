@@ -3,7 +3,7 @@
 // -------------------- Wheel & Encoder ------------------
 
 // Wheel radius in meters
-constexpr float WHEEL_RADIUS_M = 0.03729f;   // 3.5 cm
+constexpr float WHEEL_RADIUS_M = 0.03729f;   
 
 // Encoder resolution counts per WHEEL revolution (measured by 10-turn hand test)
 // (quadrature decoding included)
