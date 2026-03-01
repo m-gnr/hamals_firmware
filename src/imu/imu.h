@@ -1,5 +1,6 @@
 #pragma once
 
+#include <Arduino.h>
 #include <Adafruit_BNO08x.h>
 
 // =======================================================
@@ -7,12 +8,11 @@
 // -------------------------------------------------------
 // Responsibility:
 //  - Initialize IMU
-//  - Provide yaw (rad)
-//  - Zero yaw at startup
+//  - Provide gyro z (rad/s)
+//  - Provide linear acceleration (m/s^2)
 //
 // NOTE:
 //  - No time handling
-//  - No yaw rate calculation
 //  - All timing handled in control loop
 // =======================================================
 
@@ -25,7 +25,13 @@ public:
     bool begin();
     void update();
 
-    float getYaw() const;
+    // Gyro yaw-rate (rad/s)
+    float getGz() const;
+
+    // Linear acceleration (m/s^2) in IMU frame
+    float getAx() const;
+    float getAy() const;
+    float getAz() const;
 
 private:
     uint8_t cs_;
@@ -35,7 +41,9 @@ private:
     Adafruit_BNO08x bno08x_;
     sh2_SensorValue_t sensorValue_;
 
-    float yaw_ = 0.0f;
-    float yaw_offset_ = 0.0f;
-    bool  yaw_zeroed_ = false;
+    // Latest IMU measurements (SI units)
+    float gz_ = 0.0f;  // rad/s
+    float ax_ = 0.0f;  // m/s^2
+    float ay_ = 0.0f;  // m/s^2
+    float az_ = 0.0f;  // m/s^2
 };

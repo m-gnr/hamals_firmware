@@ -108,6 +108,17 @@ constexpr float WHEEL_PID_KD = 0.0f;
 constexpr float WHEEL_PID_RAMP_STEP = 15.0f;
 
 // -------------------- Serial TX -----------------------
+// Telemetry periods (seconds)
+// Contract:
+//   $ENC,t_us,dl,dr*CS @ ENC_TX_DT_S
+//   $IMU,t_us,gz,ax,ay,az*CS @ IMU_TX_DT_S
 
-// Odometry transmit period (seconds)
-constexpr float ODOM_TX_DT_S = 0.025f;  // 40 Hz
+// Encoder telemetry transmit period (seconds)
+constexpr float ENC_TX_DT_S = 0.02f;   // 50 Hz
+
+// IMU telemetry transmit period (seconds)
+constexpr float IMU_TX_DT_S = 0.02f;   // 50 Hz
+
+// Backward-compatible alias (older code used this name)
+// Prefer ENC_TX_DT_S / IMU_TX_DT_S going forward.
+constexpr float ODOM_TX_DT_S = ENC_TX_DT_S;

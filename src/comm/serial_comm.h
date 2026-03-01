@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <cstddef>
+#include <cstdint>
 
 // -------------------- DATA -----------------------------
 struct CmdVel {
@@ -19,9 +20,18 @@ public:
     bool hasCmdVel() const;
     CmdVel getCmdVel();   // returns last cmd and clears valid flag
 
-    void sendOdom(uint32_t t_us,
-                  float x, float y, float yaw,
-                  float v, float w);
+    // MCU -> ROS telemetry (custom serial protocol)
+    // $ENC,t_us,dl,dr*CS\n
+    void sendEnc(uint32_t t_us,
+                 int32_t dl,
+                 int32_t dr);
+
+    // $IMU,t_us,gz,ax,ay,az*CS\n
+    void sendImu(uint32_t t_us,
+                 float gz,
+                 float ax,
+                 float ay,
+                 float az);
 
 private:
     static constexpr size_t RX_BUF_SIZE = 128;

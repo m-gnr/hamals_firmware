@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <cmath>
+#include "../config/config_robot.h"
 
 IMU::IMU(uint8_t cs_pin,
          uint8_t int_pin,
@@ -19,54 +20,46 @@ bool IMU::begin()
         return false;
     }
 
-    // 200 Hz internal update
-    bno08x_.enableReport(SH2_GAME_ROTATION_VECTOR, 5000);
+    const uint32_t report_period_us = static_cast<uint32_t>(IMU_TX_DT_S * 1e6f);
+
+    bno08x_.enableReport(SH2_GYROSCOPE_CALIBRATED, report_period_us);
+    bno08x_.enableReport(SH2_LINEAR_ACCELERATION, report_period_us);
 
     delay(200);
 
-    yaw_zeroed_ = false;
-    yaw_ = 0.0f;
+    gz_ = 0.0f;
+    ax_ = 0.0f;
+    ay_ = 0.0f;
+    az_ = 0.0f;
 
     return true;
 }
 
 void IMU::update()
 {
-    if (!bno08x_.getSensorEvent(&sensorValue_))
-        return;
-
-    if (sensorValue_.sensorId != SH2_GAME_ROTATION_VECTOR)
-        return;
-
-    // Quaternion
-    const float qi = sensorValue_.un.gameRotationVector.i;
-    const float qj = sensorValue_.un.gameRotationVector.j;
-    const float qk = sensorValue_.un.gameRotationVector.k;
-    const float qr = sensorValue_.un.gameRotationVector.real;
-
-    // Convert quaternion → yaw (rad)
-    const float raw_yaw = atan2(
-        2.0f * (qi * qj + qk * qr),
-        1.0f - 2.0f * (qj * qj + qk * qk)
-    );
-
-    // Zero yaw at startup
-    if (!yaw_zeroed_) {
-        yaw_offset_ = raw_yaw;
-        yaw_ = 0.0f;
-        yaw_zeroed_ = true;
+    if (!bno08x_.getSensorEvent(&sensorValue_)) {
         return;
     }
 
-    // Apply offset
-    yaw_ = raw_yaw - yaw_offset_;
+    switch (sensorValue_.sensorId) {
+        case SH2_GYROSCOPE_CALIBRATED:
+            // Adafruit_BNO08x reports gyro in rad/s
+            gz_ = sensorValue_.un.gyroscope.z;
+            break;
 
-    // Wrap to [-PI, PI]
-    while (yaw_ >  M_PI) yaw_ -= 2.0f * M_PI;
-    while (yaw_ < -M_PI) yaw_ += 2.0f * M_PI;
+        case SH2_LINEAR_ACCELERATION:
+            // Linear acceleration (gravity removed), m/s^2
+            ax_ = sensorValue_.un.linearAcceleration.x;
+            ay_ = sensorValue_.un.linearAcceleration.y;
+            az_ = sensorValue_.un.linearAcceleration.z;
+            break;
+
+        default:
+            break;
+    }
 }
 
-float IMU::getYaw() const
-{
-    return yaw_;
-}
+float IMU::getGz() const { return gz_; }
+float IMU::getAx() const { return ax_; }
+float IMU::getAy() const { return ay_; }
+float IMU::getAz() const { return az_; }

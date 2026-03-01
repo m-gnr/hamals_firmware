@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include <cmath>
 
 // -------------------- CONFIG ---------------------------
 #include "src/config/config_pins.h"
@@ -8,7 +9,6 @@
 #include "src/encoder/encoder.h"
 #include "src/kinematics/kinematics.h"
 #include "src/imu/imu.h"
-#include "src/odometry/odometry.h"
 #include "src/control/velocity_cmd.h"
 #include "src/control/wheel_pid.h"
 #include "src/motor/motor.h"
@@ -37,9 +37,6 @@ Kinematics kinematics(
     TRACK_WIDTH_M
 );
 
-// Odometry
-Odometry odom;
-
 // Velocity command
 VelocityCmd velocityCmd(WHEEL_RADIUS_M, TRACK_WIDTH_M);
 
@@ -53,12 +50,8 @@ Motor motorR(MOTOR_R_IN1, MOTOR_R_IN2, PWM_MAX);
 
 // -------------------- TIMING ---------------------------
 Timing controlTimer(CONTROL_DT_S);
-Timing odomTxTimer(ODOM_TX_DT_S);
-
-// -------------------- CONTROL STATE -------------------
-static float last_yaw = 0.0f;
-static float yaw_rate = 0.0f;
-
+Timing encTxTimer(ENC_TX_DT_S);
+Timing imuTxTimer(IMU_TX_DT_S);
 
 // ======================================================
 // SETUP
@@ -93,9 +86,9 @@ void setup() {
     pidL.setDeadzone(PWM_MIN_START_L, PWM_MIN_RUN_L, DEADZONE_CMD_EPS, DEADZONE_MEAS_EPS);
     pidR.setDeadzone(PWM_MIN_START_R, PWM_MIN_RUN_R, DEADZONE_CMD_EPS, DEADZONE_MEAS_EPS);
 
-    odom.reset();
     controlTimer.reset();
-    odomTxTimer.reset();
+    encTxTimer.reset();
+    imuTxTimer.reset();
 
     Serial.println("Ready");
 }
@@ -139,37 +132,9 @@ void loop() {
     }
 
     // --------------------
-    // IMU (yaw wrap handled in IMU class)
+    // ANGULAR CMD (no MCU-side yaw correction; handled upstream if needed)
     // --------------------
-    float yaw = imu.getYaw();
-
-    // --------------------
-    // YAW RATE
-    // --------------------
-    float dyaw = yaw - last_yaw;
-
-    if (dyaw > M_PI)       dyaw -= 2.0f * M_PI;
-    else if (dyaw < -M_PI) dyaw += 2.0f * M_PI;
-
-    // IMU spike guard
-    if (fabs(dyaw) > IMU_SPIKE_THRESHOLD_RAD) {
-        dyaw = 0.0f;
-        yaw  = last_yaw;
-    }
-
-    yaw_rate = (dt > 0.0f) ? (dyaw / dt) : 0.0f;
-    last_yaw = yaw;
-
-    // --------------------
-    // YAW CORRECTION
-    // --------------------
-    float w_cmd = w_target;
-    if constexpr (ENABLE_YAW_CORRECTION) {
-        if (fabs(w_target) < YAW_CORRECTION_W_THRESHOLD) {
-            const float yaw_error = -yaw;
-            w_cmd += YAW_CORRECTION_KP * yaw_error;
-        }
-    }
+    const float w_cmd = w_target;
 
     // --------------------
     // VELOCITY CMD
@@ -194,11 +159,6 @@ void loop() {
     const KinematicsOutput kinOut = kinematics.update(kinIn);
 
     // --------------------
-    // ODOMETRY
-    // --------------------
-    odom.update(kinOut.v, yaw, dt);
-
-    // --------------------
     // PID → MOTORS
     // --------------------
     const float pwmL = pidL.update(omegaLt, kinOut.omega_left, dt);
@@ -208,17 +168,21 @@ void loop() {
 
     // --------------------
     // SERIAL TX (MCU → ROS)
+    // Contract:
+    //   $ENC,t_us,dl,dr*CS @ ENC_TX_DT_S
+    //   $IMU,t_us,gz,ax,ay,az*CS @ IMU_TX_DT_S
     // --------------------
-    if (odomTxTimer.tick()) {
-        const uint32_t t_us = micros();
-        serial.sendOdom(
-            t_us,
-            odom.x(),
-            odom.y(),
-            odom.yaw(),
-            kinOut.v,
-            kinOut.w
-        );
+    bool sent_any = false;
+    uint32_t t_us = 0;
+
+    if (encTxTimer.tick()) {
+        if (!sent_any) { t_us = micros(); sent_any = true; }
+        serial.sendEnc(t_us, dL, dR);
+    }
+
+    if (imuTxTimer.tick()) {
+        if (!sent_any) { t_us = micros(); sent_any = true; }
+        serial.sendImu(t_us, imu.getGz(), imu.getAx(), imu.getAy(), imu.getAz());
     }
 
 }

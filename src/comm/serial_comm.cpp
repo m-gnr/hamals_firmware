@@ -137,13 +137,48 @@ CmdVel SerialComm::getCmdVel() {
     return last_cmd_;
 }
 
-void SerialComm::sendOdom(uint32_t t_us, float x, float y, float yaw,
-                          float v, float w) {
+void SerialComm::sendEnc(uint32_t t_us, int32_t dl, int32_t dr) {
+    // Build payload
+    char payload[64];
+    const int p_len = snprintf(payload, sizeof(payload),
+                               "ENC,%lu,%ld,%ld",
+                               (unsigned long)t_us,
+                               (long)dl,
+                               (long)dr);
+    if (p_len <= 0 || p_len >= (int)sizeof(payload)) {
+        return;
+    }
+
+    // XOR checksum over payload
+    uint8_t cs = 0;
+    for (int i = 0; i < p_len; ++i) {
+        cs ^= (uint8_t)payload[i];
+    }
+
+    // Build full frame
+    char frame[96];
+    const int f_len = snprintf(frame, sizeof(frame), "$%s*%02X\n", payload, cs);
+    if (f_len <= 0 || f_len >= (int)sizeof(frame)) {
+        return;
+    }
+
+    // NON-BLOCKING DROP STRATEGY:
+    // If the USB-CDC TX buffer is low (host stalled), skip this telemetry frame
+    // so the control loop never blocks.
+    if (Serial.availableForWrite() < f_len) {
+        return;
+    }
+
+    Serial.write((const uint8_t*)frame, (size_t)f_len);
+}
+
+void SerialComm::sendImu(uint32_t t_us, float gz, float ax, float ay, float az) {
     // Build payload
     char payload[96];
     const int p_len = snprintf(payload, sizeof(payload),
-                               "ODOM,%lu,%.3f,%.3f,%.3f,%.3f,%.3f",
-                               (unsigned long)t_us, x, y, yaw, v, w);
+                               "IMU,%lu,%.6f,%.6f,%.6f,%.6f",
+                               (unsigned long)t_us,
+                               gz, ax, ay, az);
     if (p_len <= 0 || p_len >= (int)sizeof(payload)) {
         return;
     }
